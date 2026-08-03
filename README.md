@@ -139,138 +139,50 @@ project-template/
 
 ---
 
-## ✏️ 你的開發流程（每個功能都走這六步）
 
-所有資料庫資料表
 
-### Step 1：設計 Schema → 開新的 migration
-
-建 `src/main/resources/db/migration/V2__create_database.sql`（**永遠開新檔，不改舊的 V1**）：
-
-```sql
--- =============================================================================
--- 1. 會員資料表 (Users)
--- =============================================================================
-CREATE TABLE users (
-                       id            INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                       username      VARCHAR(30) UNIQUE NOT NULL,
-                       password_hash VARCHAR(255) NOT NULL,
-                       phone         VARCHAR(20),
-                       email         VARCHAR(100) UNIQUE,
-                       role          VARCHAR(10) DEFAULT 'USER' CHECK (role IN ('USER', 'ADMIN')),
-                       created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                       updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =============================================================================
--- 2. 球場資料表 (Courts)
--- =============================================================================
-CREATE TABLE courts (
-                        id          INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                        name        VARCHAR(50) NOT NULL,
-                        type        VARCHAR(20) NOT NULL CHECK (type IN ('HARD', 'GRASS', 'CLAY')),
-                        status      VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE', 'BOOKED', 'MAINTENANCE')),
-                        description TEXT,
-                        hourly_rate INT NOT NULL,
-                        created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                        updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- =============================================================================
--- 3. 預約紀錄表 (Bookings) - 包含 payment_method 欄位與外鍵約束
--- =============================================================================
-CREATE TABLE bookings (
-                          id             INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-                          user_id        INT NOT NULL,
-                          court_id       INT NOT NULL,
-                          start_time     TIMESTAMP NOT NULL,
-                          end_time       TIMESTAMP NOT NULL,
-                          total_fee      INT NOT NULL,
-                          status         VARCHAR(20) DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'PAID', 'CANCELLED')),
-                          payment_method VARCHAR(20),
-                          created_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-                          CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-                          CONSTRAINT fk_court FOREIGN KEY (court_id) REFERENCES courts(id) ON DELETE CASCADE
-);
-
--- 建立外鍵索引以提高查詢效率 (解決 N+1 與 JOIN 效能問題)
-CREATE INDEX idx_bookings_user_id ON bookings(user_id);
-CREATE INDEX idx_bookings_court_id ON bookings(court_id);
-
--- =============================================================================
--- 4. 初始化球場基礎資料 (Courts Seeds)
--- =============================================================================
-INSERT INTO courts (name, type, status, description, hourly_rate) VALUES
-                                                                      ('A號場', 'HARD', 'AVAILABLE', '靠近門口，通風良好', 500),
-                                                                      ('B號場', 'HARD', 'AVAILABLE', '標準硬地場', 500),
-                                                                      ('C號場', 'CLAY', 'MAINTENANCE', '紅土整理中，暫不開放', 600),
-                                                                      ('D號場', 'GRASS', 'AVAILABLE', '頂級草皮場', 800);
+```
 ```
 
-> PostgreSQL 語法注意：主鍵用 `GENERATED ALWAYS AS IDENTITY`（不是 MySQL 的 `AUTO_INCREMENT`）；索引要獨立 `CREATE INDEX`。
+>
 
-### Step 2：寫 Entity
+### 
 
-```java
-@Entity
-@Table(name = "products")
-@Getter @Setter
-@NoArgsConstructor
-public class Product {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)   // 一定用 IDENTITY，不要用 AUTO
-    private Long id;
-
-    @Column(nullable = false, length = 200)
-    private String name;
-
-    @Column(nullable = false)
-    private BigDecimal price;
-
-    @Column(nullable = false)
-    private Integer stock = 0;
-
-    @Column(name = "created_at")
-    private LocalDateTime createdAt;
-}
+```
 ```
 
-### Step 3：寫 Repository
 
-```java
-public interface ProductRepository extends JpaRepository<Product, Long> {
-    // 衍生查詢的回傳型別用 Optional<T> / List<T> / Page<T>
-    Optional<Product> findByName(String name);
-}
+
+```
 ```
 
-### Step 4：寫 Service（業務邏輯放這裡，不放 Controller）＋ Controller
 
-參考 `RefreshTokenService` / `AuthController` 的寫法。拿目前登入者：
 
-```java
-@GetMapping("/mine")
-public List<OrderResponse> myOrders(@AuthenticationPrincipal UserPrincipal user) {
-    return orderService.findByUserId(user.getId());
-}
+```
 ```
 
-### Step 5：把 API 路徑加進 SecurityConfig 👈 **別忘了這步！**
 
-打開 `config/SecurityConfig.java`，找到 `👇👇👇 你的 API 權限規則加在這裡 👇👇👇` 標記區：
-
-```java
-// 商品查詢公開、修改要登入（沒寫的路徑預設「要登入」）
-.requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
-// 管理端只給 ADMIN
-.requestMatchers("/api/admin/**").hasRole("ADMIN")
 ```
 
-規則由上而下比對：**具體的寫前面**，最後一條 `anyRequest().authenticated()` 不要動。
-新 API 忘了設定也不會裸奔——預設就是要登入。
-
+```
+## 📋 API 清單
+| 方法 | 路徑 | 說明                          | 權限 |
+|---|---|-----------------------------|---|
+| POST | `/api/auth/register` | 註冊                          | 公開 |
+| POST | `/api/auth/login` | 登入                          | 公開 |
+|POST|`/api/auth/refresh`| 刷新 Access Token（Token 輪換機制  |公開|
+|POST|`/api/auth/logout`| 使用者登出（撤銷 Refresh Token）     |公開|
+|GET|`/api/v1/users/{id}`| 查詢特定使用者資料（Profile）          |已登入會員|
+|PUT|`/api/v1/users/{id}`| 更新使用者基本資料（Username / Email) |已登入會員|
+|DELETE|`/api/v1/users/{id}`| 刪除使用者                        |僅限管理員 (ROLE_ADMIN)|
+|GET|`/api/v1/courts`| 取得開放中的球場清單                         |公開|
+|GET|`/api/v1/courts/{id}`| 依 ID 查詢單一球場詳細資訊                        |公開|
+|POST|`/api/v1/courts`| 新增球場                       |僅限管理員 (ROLE_ADMIN)|
+|PATCH|`/api/v1/courts/{id}/status`|更新球場狀態（例如：維護中 / 暫不開放| 僅限管理員 (ROLE_ADMIN)                        |
+|POST|`/api/v1/bookings`|發起球場預約（自動檢查時段重疊與費用試算）                         |已登入會員|
+|GET|`/api/v1/bookings/my`| 查詢個人預約紀錄                        |已登入會員|
+|PATCH|`/api/v1/bookings/{id}/check-in`| 執行現場報到                        |已登入會員|
+|PATCH|`/api/v1/bookings/{id}/cancel`| 取消預約                       |已登入會員|
 ---
 
 ## 💣 高頻踩坑（都是真實案例，先看再寫）
@@ -317,14 +229,6 @@ docker exec my_postgres psql -U postgres -d starter_db -c \
 ```
 重新登入拿新 token（角色寫在 token 裡，舊 token 不會自動更新）。
 
-**Q：全域例外處理、Swagger、Redis 什麼時候加？**
-之後課程會教（36 之後），到時候直接往這個專案上加即可。現在先把業務功能做好。
 
-💣 網球專案開發與審核踩坑指南
-| # | 坑 | 症狀 | 解法 |
-|---|----|------|------|
-| 1 | 預約列表 N+1 問題 | 查詢預約紀錄時印出大量 SQL 語句` |在 BookingRepository 使用 JOIN FETCH b.court 一次帶出球場資料。|
-| 2 | 傳入過期時間/空白欄位 | 系統直接噴出 500 Unhandled Exception | 在 DTO 加註 @Future / @NotNull，並由 GlobalExceptionHandler 統一回應 400 Bad Request。 |
-| 3 | @Builder 預設值失效 | 使用 Builder 建立 Entity 時狀態變成 null | 於 Entity 預設欄位加上 @Builder.Default（如 status = CourtStatus.AVAILABLE）。 |
-| 4 | 重複預約同一時段 | 多個使用者重疊預約同一球場 | 於 Service 層調用 isTimeSlotOccupied 檢查，若衝突拋出例外由 Handler 回傳 409 Conflict。 |
-| 5 | 一般會員存取管理 API| 無法擋下越權存取 | 控制器加註 @PreAuthorize("hasRole('ADMIN')")，權限不足自動回應 403 Forbidden。 |
+
+

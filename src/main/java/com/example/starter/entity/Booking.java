@@ -1,4 +1,5 @@
 package com.example.starter.entity;
+import com.example.starter.entity.Emum.CheckInStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -42,6 +43,19 @@ public class Booking {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "is_checked_in", nullable = false)
+    @Builder.Default
+    private boolean checkedIn = false; // 是否已完成報到
+
+    @Column(name = "check_in_time")
+    private LocalDateTime checkInTime; // 實際報到時間點
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "check_in_status", nullable = false, length = 20)
+    @Builder.Default
+    private CheckInStatus checkInStatus = CheckInStatus.PENDING; // 報到狀態細分
+
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -52,4 +66,20 @@ public class Booking {
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    /**
+     * 執行現場報到動作
+     */
+    public void markAsCheckedIn() {
+        this.checkedIn = true;
+        this.checkInTime = LocalDateTime.now();
+
+        // 範例：如果報到時間超過預約開始時間 15 分鐘，標示為遲到
+        if (this.checkInTime.isAfter(this.startTime.plusMinutes(15))) {
+            this.checkInStatus = CheckInStatus.LATE;
+        } else {
+            this.checkInStatus = CheckInStatus.CHECKED_IN;
+        }
+    }
+
 }
