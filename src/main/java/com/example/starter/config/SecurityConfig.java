@@ -38,39 +38,44 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .authorizeHttpRequests(auth -> auth
-                // ── 模板內建的公開路徑（不要刪） ─────────────────────────
-                .requestMatchers("/api/auth/**").permitAll()          // 註冊 / 登入 / refresh / 登出
-                .requestMatchers("/api/example/public").permitAll()   // 示範用公開端點
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .authorizeHttpRequests(auth -> auth
+                        // ── 1. 認證與公開 API 放行 ─────────────────────────────────────
+                        .requestMatchers("/api/auth/**").permitAll()          // 註冊 / 登入 / refresh / 登出
+                        .requestMatchers("/api/example/public").permitAll()   // 示範用公開端點
 
-                // ══════════════════════════════════════════════════════
-                // 👇👇👇 你的 API 權限規則加在這裡 👇👇👇
-                //
-                // 範例（照抄改路徑即可）：
-                // .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()   // 查詢公開
-                // .requestMatchers("/api/admin/**").hasRole("ADMIN")                 // 只有管理員
-                //
-                // 規則由上而下比對，先寫具體的、後寫廣泛的。
-                // 沒寫到的路徑會落到下面 anyRequest().authenticated() → 需要登入。
-                // ══════════════════════════════════════════════════════
+                        // 🎯 2. Swagger / OpenAPI 3 UI 靜態資源放行 ─────────────────────
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml"
+                        ).permitAll()
 
-                // ── 其他所有請求都需要登入（保持在最後一條） ──────────────
-                .anyRequest().authenticated()
-            )
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                        // 🎾 3. 網球預約系統專屬權限規則 ──────────────────────────────────
+                        // (A) 球場公開 API：任何人（包含未登入）都可以查詢球場列表與細節
+                        .requestMatchers(HttpMethod.GET, "/api/v1/courts/**").permitAll()
+
+                        // (B) 管理員專屬 API：只有 ROLE_ADMIN 可以新增球場、修改狀態或刪除使用者
+                        .requestMatchers(HttpMethod.POST, "/api/v1/courts/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/courts/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/users/**").hasRole("ADMIN")
+
+                        // ── 4. 其他所有請求都需要登入（保持在最後一條） ──────────────────
+                        .anyRequest().authenticated()
+                )
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
 
     /**
      * Spring Security 7（Boot 4）用建構子注入 UserDetailsService。
-     * 舊教學常見的 new DaoAuthenticationProvider() + setUserDetailsService() 已移除，會編譯錯誤。
      */
     @Bean
     public AuthenticationProvider authenticationProvider() {
@@ -94,8 +99,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-            "http://localhost:3000",   // React
-            "http://localhost:5173"    // Vite
+                "http://localhost:3000",   // React
+                "http://localhost:5173"    // Vite
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

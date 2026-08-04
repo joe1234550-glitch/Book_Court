@@ -5,6 +5,11 @@ import com.example.starter.entity.*;
 import com.example.starter.repository.*;
 import com.example.starter.security.*;
 import com.example.starter.service.RefreshTokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +33,7 @@ import java.util.Set;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "1. 認證管理 API", description = "提供會員註冊、帳密登入、Token 刷新與登出機制")
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
@@ -37,6 +43,13 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
 
+    @Operation(summary = "使用者登入", description = "驗證帳號密碼，成功後發放 JWT Access Token 與 Refresh Token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "登入成功，回傳 JWT 憑證"),
+            @ApiResponse(responseCode = "401", description = "帳號或密碼錯誤"),
+            @ApiResponse(responseCode = "403", description = "帳號已被停用")
+    })
+    @SecurityRequirements // 🎯 公開端點：覆蓋全域設定，不在 Swagger 畫面上要求鎖頭認證
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         try {
@@ -68,6 +81,12 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "使用者註冊", description = "新增一般會員帳號，預設給予 ROLE_USER 權限")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "註冊成功"),
+            @ApiResponse(responseCode = "400", description = "帳號或 Email 已被使用，或輸入資料驗證失敗")
+    })
+    @SecurityRequirements // 🎯 公開端點
     @PostMapping("/register")
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         if (userRepository.existsByUsername(request.username())) {
@@ -95,6 +114,12 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body("註冊成功");
     }
 
+    @Operation(summary = "刷新 Access Token", description = "傳入有效的 Refresh Token 換取新的 Access Token 與 Refresh Token（Token 輪換）")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "刷新成功，回傳新 Token"),
+            @ApiResponse(responseCode = "400", description = "Refresh Token 無效或已過期")
+    })
+    @SecurityRequirements // 🎯 刷新 Token 使用的是 RequestBody 裡的 refreshToken，無須 Authorization Header
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refreshToken(
             @Valid @RequestBody RefreshTokenRequest request) {
@@ -115,6 +140,11 @@ public class AuthController {
         );
     }
 
+    @Operation(summary = "使用者登出", description = "撤銷該使用者的 Refresh Token，使其無法再刷新 Access Token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "登出成功"),
+            @ApiResponse(responseCode = "400", description = " Refresh Token 驗證失敗")
+    })
     @PostMapping("/logout")
     public ResponseEntity<String> logout(@RequestBody RefreshTokenRequest request) {
         RefreshToken refreshToken = refreshTokenService.verifyExpiration(request.refreshToken());

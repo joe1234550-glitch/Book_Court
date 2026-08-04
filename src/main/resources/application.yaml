@@ -33,4 +33,4 @@ springdoc:
       flyway:
         repair-on-migrat = true
   # 只掃描指定套件，加快啟動速度
-  packages-to-scan: com.example.starter.StarterApplication
+  packages-to-scan: com.example.starter.controller

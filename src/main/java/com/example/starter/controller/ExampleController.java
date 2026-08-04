@@ -22,27 +22,27 @@ import java.util.Map;
 @RequestMapping("/api/example")
 public class ExampleController {
 
-    /** 公開端點（SecurityConfig 有 permitAll） */
-    @GetMapping("/public")
-    public Map<String, String> publicEndpoint() {
-        return Map.of("message", "這是公開 API，不用登入就看得到");
-    }
-
-    /** 需要登入：用 @AuthenticationPrincipal 拿到目前登入者 */
-    @GetMapping("/protected")
-    public Map<String, Object> protectedEndpoint(@AuthenticationPrincipal UserPrincipal user) {
-        return Map.of(
-                "message", "你已成功通過 JWT 認證！",
-                "userId", user.getId(),
-                "username", user.getUsername(),
-                "roles", user.getRoleNames()
-        );
-    }
-
-    /** 需要 ADMIN 角色：@PreAuthorize 示範（@EnableMethodSecurity 已開） */
-    @GetMapping("/admin")
-    @PreAuthorize("hasRole('ADMIN')")
-    public Map<String, String> adminEndpoint() {
-        return Map.of("message", "只有 ROLE_ADMIN 看得到這裡");
-    }
+//    /** 公開端點（SecurityConfig 有 permitAll） */
+//    @GetMapping("/public")
+//    public Map<String, String> publicEndpoint() {
+//        return Map.of("message", "這是公開 API，不用登入就看得到");
+//    }
+//
+//    /** 需要登入：用 @AuthenticationPrincipal 拿到目前登入者 */
+//    @GetMapping("/protected")
+//    public Map<String, Object> protectedEndpoint(@AuthenticationPrincipal UserPrincipal user) {
+//        return Map.of(
+//                "message", "你已成功通過 JWT 認證！",
+//                "userId", user.getId(),
+//                "username", user.getUsername(),
+//                "roles", user.getRoleNames()
+//        );
+//    }
+//
+//    /** 需要 ADMIN 角色：@PreAuthorize 示範（@EnableMethodSecurity 已開） */
+//    @GetMapping("/admin")
+//    @PreAuthorize("hasRole('ADMIN')")
+//    public Map<String, String> adminEndpoint() {
+//        return Map.of("message", "只有 ROLE_ADMIN 看得到這裡");
+//    }
 }
