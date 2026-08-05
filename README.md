@@ -158,40 +158,95 @@ Book_Court-master/
 
 ```mermaid
 erDiagram
-    USERS {
-        int id PK
-        varchar username
-        varchar password_hash
-        varchar phone
-        varchar email
-        varchar role
+    users {
+        BIGINT id PK
+        VARCHAR_50 username
+        VARCHAR_100 email
+        VARCHAR_255 password
+        BOOLEAN enabled
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
     }
 
-    COURTS {
-        int id PK
-        varchar name
-        varchar type "CHECK (HARD, GRASS, CLAY)"
-        varchar status "NOT NULL CHECK (AVAILABLE, BOOKED, MAINTENANCE)"
-        text description
-        int hourly_rate
-        timestamp created_at
-        timestamp updated_at
+    roles {
+        BIGINT id PK
+        VARCHAR_50 name
     }
 
-    BOOKINGS {
-        int id PK
-        int user_id FK "References USERS(id)"
-        int court_id FK "References COURTS(id)"
-        timestamp start_time
-        timestamp end_time
-        int total_fee
-        varchar status "DEFAULT PENDING CHECK (PENDING, PAID, CANCELLED)"
-        varchar payment_method
-        timestamp created_at
+    permissions {
+        BIGINT id PK
+        VARCHAR_100 name
     }
 
-    USERS ||--o{ BOOKINGS : "擁有"
-    COURTS ||--o{ BOOKINGS : "被預約"
+    user_roles {
+        BIGINT user_id PK,FK
+        BIGINT role_id PK,FK
+    }
+
+    role_permissions {
+        BIGINT role_id PK,FK
+        BIGINT permission_id PK,FK
+    }
+
+    refresh_tokens {
+        BIGINT id PK
+        VARCHAR_512 token
+        BIGINT user_id FK
+        TIMESTAMP expiry_date
+    }
+
+    operation_log {
+        BIGINT id PK
+        VARCHAR_100 module
+        VARCHAR_50 action
+        VARCHAR_255 description
+        VARCHAR_255 method_name
+        TEXT params
+        TEXT result
+        TEXT error_message
+        VARCHAR_50 operator_id
+        VARCHAR_100 operator_name
+        BIGINT cost_millis
+        BOOLEAN success
+        TIMESTAMP created_at
+    }
+
+    courts {
+        BIGSERIAL id PK
+        VARCHAR_50 name
+        VARCHAR_20 type
+        VARCHAR_20 status
+        TEXT description
+        INT hourly_rate
+        TIMESTAMP_TZ created_at
+        TIMESTAMP_TZ updated_at
+    }
+
+    bookings {
+        BIGSERIAL id PK
+        BIGINT user_id FK
+        BIGINT court_id FK
+        TIMESTAMP start_time
+        TIMESTAMP end_time
+        INT total_fee
+        VARCHAR_20 status
+        BOOLEAN is_checked_in
+        TIMESTAMP check_in_time
+        VARCHAR_20 check_in_status
+        TIMESTAMP created_at
+        TIMESTAMP updated_at
+    }
+
+    %% 關聯外鍵約束 (Foreign Keys)
+    users ||--o{ user_roles : "user_id"
+    roles ||--o{ user_roles : "role_id"
+
+    roles ||--o{ role_permissions : "role_id"
+    permissions ||--o{ role_permissions : "permission_id"
+
+    users ||--o{ refresh_tokens : "ON DELETE CASCADE"
+    users ||--o{ bookings : "ON DELETE CASCADE"
+    courts ||--o{ bookings : "ON DELETE RESTRICT"
 ```
 
 
