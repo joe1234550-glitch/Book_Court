@@ -1,5 +1,6 @@
 ﻿# 🎾 網球預約系統（Tennis Court Booking System）
-
+> 目的是為了讓球友可以預約某場館的網球場，並能顯示球場數量、預約時段、可預約場地、已預約場地
+> 後端可協助電話預約的球友預約球場、修改、取消
 ---
 
 ## ⚡ 第一次啟動（5 分鐘）
@@ -47,7 +48,7 @@ npm run dev
 - `adminuser / password123` → 管理員
 
 ### 後端管理員登入頁面
-- `http://localhost:8080/admin/login`
+- `http://localhost:5173`
 
 ### 前端入口
 - `http://localhost:5173`
