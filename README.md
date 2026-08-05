@@ -267,3 +267,6 @@ A：後端的管理員 API 在 `SecurityConfig.java` 中以 `ROLE_ADMIN` 控制�
 ## 📌 補充
 
 如果你希望，我可以再幫你把 README 加上「目前已完成功能清單」與「下一步開發待辦事項」。
+---
+## 📋 AI協作部分
+前端所有使用者介面、後端AdminController AdminLoginController部分都是由AI協助產生
