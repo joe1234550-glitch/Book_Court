@@ -56,6 +56,8 @@ public class SecurityConfig {
                         // 🎾 3. 網球預約系統專屬權限規則 ──────────────────────────────────
                         // (A) 球場公開 API：任何人（包含未登入）都可以查詢球場列表與細節
                         .requestMatchers(HttpMethod.GET, "/api/v1/courts/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/bookings/court/**").permitAll()
+                        .requestMatchers("/admin/login", "/admin-login.html").permitAll()
 
                         // (B) 管理員專屬 API：只有 ROLE_ADMIN 可以新增球場、修改狀態或刪除使用者
                         .requestMatchers(HttpMethod.POST, "/api/v1/courts/**").hasRole("ADMIN")
@@ -98,9 +100,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(
-                "http://localhost:3000",   // React
-                "http://localhost:5173"    // Vite
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "http://127.0.0.1:*"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));

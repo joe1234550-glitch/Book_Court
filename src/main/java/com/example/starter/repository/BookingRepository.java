@@ -31,6 +31,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("endTime") LocalDateTime endTime
     );
 
+    @Query("SELECT b FROM Booking b JOIN FETCH b.user WHERE b.court.id = :courtId " +
+            "AND b.startTime >= :dayStart AND b.startTime < :dayEnd " +
+            "AND b.status IN ('PENDING', 'CONFIRMED') ORDER BY b.startTime")
+    List<Booking> findByCourtAndDay(
+            @Param("courtId") Long courtId,
+            @Param("dayStart") LocalDateTime dayStart,
+            @Param("dayEnd") LocalDateTime dayEnd
+    );
+
     // 3. 🎯 (連動新欄位) 查詢特定球場當天的指定報到狀態 (用於櫃檯報到看板/排程清理)
     @Query("SELECT b FROM Booking b JOIN FETCH b.user WHERE b.court.id = :courtId " +
             "AND b.startTime >= :dayStart AND b.startTime < :dayEnd " +

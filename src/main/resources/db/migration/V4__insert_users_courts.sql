@@ -1,8 +1,8 @@
 -- 2. 新增測試使用者 (密碼皆為: password123 的 BCrypt 雜湊值)
 -- 注意：不寫入 id 欄位，由 GENERATED ALWAYS AS IDENTITY 自動生成
 INSERT INTO users (username, email, password, enabled) VALUES
-                                                           ('testuser', 'test@example.com', '$2a$10$e8N/p.sR.x6Y4yJ0Z1c8ue9.4X93M4u5Q9/3o.s1W/8s1W', true),
-                                                           ('adminuser', 'admin@example.com', '$2a$10$e8N/p.sR.x6Y4yJ0Z1c8ue9.4X93M4u5Q9/3o.s1W/8s1W', true)
+                                                           ('testuser', 'test@example.com', '$2b$10$sqy9VNdWXkKb608waZ6bs.7/3FNkT.MrZYnQVz1BLuPkbAUXa9n4S', true),
+                                                           ('adminuser', 'admin@example.com', '$2b$10$sqy9VNdWXkKb608waZ6bs.7/3FNkT.MrZYnQVz1BLuPkbAUXa9n4S', true)
     ON CONFLICT (email) DO NOTHING;
 
 -- 3. 綁定使用者與角色關聯 (user_roles 表)

@@ -19,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 @RestController
@@ -60,6 +61,17 @@ public class BookingController {
             @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal currentUser) {
 
         return ResponseEntity.ok(bookingService.getBookingsByUserId(currentUser.getId()));
+    }
+
+    @Operation(summary = "查詢指定球場當日已預約時段", description = "取得特定球場指定日期的所有已預約時段，供使用者檢視空檔與避免衝突")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "成功取得該球場當日預約清單")
+    })
+    @GetMapping("/court/{courtId}")
+    public ResponseEntity<List<BookingResponse>> getCourtBookingsByDate(
+            @Parameter(description = "球場 ID", example = "1") @PathVariable Long courtId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(bookingService.getBookingsByCourtAndDate(courtId, date));
     }
 
     // 3. 🎯 [會員/櫃檯] 現場報到 API
