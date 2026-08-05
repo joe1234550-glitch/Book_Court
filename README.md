@@ -270,3 +270,7 @@ A：後端的管理員 API 在 `SecurityConfig.java` 中以 `ROLE_ADMIN` 控制�
 ---
 ## 📋 AI協作部分
 前端所有使用者介面、後端AdminController AdminLoginController部分都是由AI協助產生
+## DEMO
+![1.png](DEMO/1.png)
+![2.png](DEMO/2.png)
+![3.png](DEMO/3.png)
