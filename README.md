@@ -154,6 +154,49 @@ Book_Court-master/
             └── 📂 static/
                 └── 📄 admin-login.html    # 後端備用靜態管理員登入頁
 ```
+## 📊 ER圖（Mermaid）
+
+```mermaid
+erDiagram
+    USERS {
+        int id PK
+        varchar username
+        varchar password_hash
+        varchar phone
+        varchar email
+        varchar role
+    }
+
+    COURTS {
+        int id PK
+        varchar name
+        varchar type "CHECK (HARD, GRASS, CLAY)"
+        varchar status "NOT NULL CHECK (AVAILABLE, BOOKED, MAINTENANCE)"
+        text description
+        int hourly_rate
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    BOOKINGS {
+        int id PK
+        int user_id FK "References USERS(id)"
+        int court_id FK "References COURTS(id)"
+        timestamp start_time
+        timestamp end_time
+        int total_fee
+        varchar status "DEFAULT PENDING CHECK (PENDING, PAID, CANCELLED)"
+        varchar payment_method
+        timestamp created_at
+    }
+
+    USERS ||--o{ BOOKINGS : "擁有"
+    COURTS ||--o{ BOOKINGS : "被預約"
+```
+
+
+
+
 ## 📋 重要 API
 
 | 方法 | 路徑 | 說明 | 權限 |
