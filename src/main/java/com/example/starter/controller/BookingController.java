@@ -1,6 +1,7 @@
 package com.example.starter.controller;
 import com.example.starter.dto.BookingResponse;
 import com.example.starter.dto.CreateBookingRequest;
+import com.example.starter.dto.MonthlyRevenueDTO;
 import com.example.starter.entity.Booking;
 import com.example.starter.security.UserPrincipal;
 import com.example.starter.service.BookingService;
@@ -107,5 +108,11 @@ public class BookingController {
 
         bookingService.cancelBooking(id, currentUser.getId());
         return ResponseEntity.noContent().build();
+    }
+    @Operation(summary = "取得月度收益報表", description = "按月統計已完成與已確認預約的總營業額（僅限 ADMIN）")
+    @GetMapping("/admin/revenue-report")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<MonthlyRevenueDTO>> getMonthlyRevenueReport() {
+        return ResponseEntity.ok(bookingService.getMonthlyRevenueReport());
     }
 }

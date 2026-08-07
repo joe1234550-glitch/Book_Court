@@ -15,6 +15,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.HttpHeaders;
+import java.time.Duration;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.security.authentication.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -151,4 +155,42 @@ public class AuthController {
         refreshTokenService.revokeAllUserTokens(refreshToken.getUser());
         return ResponseEntity.ok("登出成功");
     }
+
+        @Operation(summary = "從 HttpOnly cookie 刷新 Access Token", description = "讀取 HttpOnly 的 refreshToken cookie，輪換 Refresh Token 並回傳新的 Access Token。此端點適合 SPA 在載入時呼叫以交換 token。")
+        @PostMapping("/refresh/cookie")
+        public ResponseEntity<AuthResponse> refreshTokenFromCookie(@CookieValue(name = "refreshToken", required = false) String refreshTokenCookie) {
+                if (refreshTokenCookie == null || refreshTokenCookie.isBlank()) {
+                        return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
+                }
+
+                RefreshToken refreshToken = refreshTokenService.verifyExpiration(refreshTokenCookie);
+                User user = refreshToken.getUser();
+                UserPrincipal principal = UserPrincipal.create(user);
+
+                String newAccessToken = jwtUtils.generateAccessToken(principal);
+
+                // 輪換 refresh token
+                RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user);
+
+                // 設定 HttpOnly cookie
+                ResponseCookie cookie = ResponseCookie.from("refreshToken", newRefreshToken.getToken())
+                                .httpOnly(true)
+                                .secure(false) // production: true
+                                .path("/")
+                                .maxAge(Duration.ofDays(30))
+                                .sameSite("Strict")
+                                .build();
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.add(HttpHeaders.SET_COOKIE, cookie.toString());
+
+                return ResponseEntity.ok().headers(headers)
+                                .body(AuthResponse.of(newAccessToken, newRefreshToken.getToken(), principal));
+        }
+
+        // 同步提供 GET 版本，方便瀏覽器在某些情境下使用簡單 GET 去觸發刷新
+        @GetMapping("/refresh/cookie")
+        public ResponseEntity<AuthResponse> refreshTokenFromCookieGet(@CookieValue(name = "refreshToken", required = false) String refreshTokenCookie) {
+                return refreshTokenFromCookie(refreshTokenCookie);
+        }
 }

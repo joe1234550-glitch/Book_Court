@@ -1,5 +1,5 @@
 package com.example.starter.exception;
-import com.example.starter.exception.ErrorCode ;
+
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
@@ -23,5 +23,19 @@ public class BusinessException extends RuntimeException {
         super(customMessage);
         this.errorCode = errorCode;
         this.httpStatus = httpStatus;
+    }
+
+    // 🎯 新增 1：支援只帶訊息字串，預設 HTTP 狀態為 400 BAD_REQUEST
+    public BusinessException(String customMessage) {
+        super(customMessage);
+        this.errorCode = null;
+        this.httpStatus = HttpStatus.BAD_REQUEST;
+    }
+
+    // 🎯 新增 2：支援帶 ErrorCode 與自訂訊息，預設 HTTP 狀態為 400 BAD_REQUEST
+    public BusinessException(ErrorCode errorCode, String customMessage) {
+        super(customMessage);
+        this.errorCode = errorCode;
+        this.httpStatus = HttpStatus.BAD_REQUEST;
     }
 }

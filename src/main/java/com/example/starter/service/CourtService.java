@@ -2,6 +2,7 @@ package com.example.starter.service;
 import com.example.starter.entity.Court;
 import com.example.starter.entity.Emum.CourtStatus;
 import com.example.starter.repository.CourtRepository;
+import com.example.starter.repository.BookingRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,5 +49,16 @@ public class CourtService {
         Court court = getCourtById(courtId);
         court.setStatus(status);
         return courtRepository.save(court);
+    }
+
+    // 刪除球場（管理員）: 若球場已有任何預約則拒絕刪除
+    @Transactional
+    public void deleteCourt(Long courtId, BookingRepository bookingRepository) {
+        Court court = getCourtById(courtId);
+        long cnt = bookingRepository.countByCourtId(courtId);
+        if (cnt > 0) {
+            throw new IllegalStateException("此球場已有預約紀錄，無法刪除");
+        }
+        courtRepository.deleteById(courtId);
     }
 }

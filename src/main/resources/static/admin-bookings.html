@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>後端 管理 - Bookings</title>
+  <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px;}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:8px}</style>
+</head>
+<body>
+  <h1>管理：預約</h1>
+  <p><a href="/admin-courts.html">回管理首頁</a></p>
+  <div id="tokenArea"></div>
+  <button id="btnRefresh">取得 Access Token</button>
+
+  <h2>所有預約</h2>
+  <div id="list"></div>
+
+  <h2>建立預約</h2>
+  <form id="createForm">
+    userId: <input name="userId" /> <br/>
+    courtId: <input name="courtId" /> <br/>
+    startTime (ISO): <input name="startTime" /> <br/>
+    endTime (ISO): <input name="endTime" /> <br/>
+    totalFee: <input name="totalFee" /> <br/>
+    status: <input name="status" value="PENDING" /> <br/>
+    <button type="submit">建立</button>
+  </form>
+
+  <script>
+    let accessToken = null;
+    async function refresh() {
+      const res = await fetch('/api/auth/refresh/cookie', { method: 'GET' });
+      if (!res.ok) throw new Error('refresh failed');
+      const body = await res.json();
+      accessToken = body.accessToken;
+      document.getElementById('tokenArea').innerText = 'Access Token ready';
+    }
+
+    document.getElementById('btnRefresh').addEventListener('click', async () => {
+      try { await refresh(); await loadList(); } catch(e){ alert('刷新失敗'); }
+    });
+
+    async function loadList() {
+      const res = await fetch('/api/v1/admin/bookings', { headers: { 'Authorization': 'Bearer ' + accessToken } });
+      if (!res.ok) { document.getElementById('list').innerText = '載入失敗'; return; }
+      const data = await res.json();
+      const html = ['<table><tr><th>ID</th><th>User</th><th>Court</th><th>Start</th><th>End</th><th>Status</th><th>Action</th></tr>'];
+      for (const b of data) {
+        html.push(`<tr><td>${b.id}</td><td>${b.username}</td><td>${b.courtName}</td><td>${b.startTime}</td><td>${b.endTime}</td><td>${b.status}</td><td><button onclick="cancel(${b.id})">取消</button></td></tr>`);
+      }
+      html.push('</table>');
+      document.getElementById('list').innerHTML = html.join('');
+    }
+
+    async function cancel(id) {
+      if (!confirm('確定取消?')) return;
+      const res = await fetch('/api/v1/admin/bookings/' + id + '/cancel', { method: 'PATCH', headers: { 'Authorization': 'Bearer ' + accessToken } });
+      if (res.ok) { await loadList(); } else { alert('取消失敗'); }
+    }
+
+    document.getElementById('createForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const body = {
+        userId: Number(fd.get('userId')),
+        courtId: Number(fd.get('courtId')),
+        startTime: fd.get('startTime'),
+        endTime: fd.get('endTime'),
+        totalFee: Number(fd.get('totalFee')),
+        status: fd.get('status')
+      };
+      const res = await fetch('/api/v1/admin/bookings', { method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization': 'Bearer ' + accessToken }, body: JSON.stringify(body) });
+      if (res.ok) { alert('建立成功'); await loadList(); } else { alert('建立失敗'); }
+    });
+  </script>
+</body>
+</html>

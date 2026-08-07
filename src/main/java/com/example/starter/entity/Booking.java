@@ -55,6 +55,12 @@ public class Booking {
     @Builder.Default
     private CheckInStatus checkInStatus = CheckInStatus.PENDING; // 報到狀態細分
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "promo_code_id")
+    private PromoCode promoCode;
+
+    @Column(name = "discount_amount")
+    private Integer discountAmount = 0;
 
     @PrePersist
     protected void onCreate() {

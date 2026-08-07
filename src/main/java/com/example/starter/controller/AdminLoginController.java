@@ -10,6 +10,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.ResponseCookie;
+import org.springframework.http.HttpHeaders;
+import java.net.URI;
+import java.time.Duration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -36,7 +40,7 @@ public class AdminLoginController {
     }
 
     @PostMapping(value = "/admin/login", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
-    public ResponseEntity<String> handleAdminLogin(
+    public ResponseEntity<?> handleAdminLogin(
             @RequestParam String username,
             @RequestParam String password) {
         try {
@@ -48,24 +52,24 @@ public class AdminLoginController {
             User user = userRepository.findByUsername(username)
                     .orElseThrow(() -> new IllegalStateException("找不到使用者: " + username));
 
-            RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
-            String accessToken = jwtUtils.generateAccessToken(principal);
+                RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+                String accessToken = jwtUtils.generateAccessToken(principal);
 
-            String html = "<!doctype html>"
-                    + "<html lang=\"zh-TW\">"
-                    + "<head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>管理員登入結果</title>"
-                    + "<style>body{font-family:Arial,sans-serif;background:#eef2ff;color:#111827;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}"
-                    + ".card{width:min(680px,100%);background:#fff;border-radius:18px;box-shadow:0 20px 60px rgba(15,23,42,.12);padding:30px;}"
-                    + "h1{margin:0 0 16px;font-size:28px;}p{margin:0 0 18px;color:#4b5563;line-height:1.6;}"
-                    + ".token{background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:18px;font-size:14px;white-space:pre-wrap;word-break:break-word;}"
-                    + ".link{display:inline-block;margin-top:22px;color:#4f46e5;text-decoration:none;font-weight:600;}</style></head><body>"
-                    + "<div class=\"card\"><h1>登入成功</h1>"
-                    + "<p>已登入管理員：<strong>" + username + "</strong></p>"
-                    + "<div class=\"token\">Access Token:\n" + accessToken + "\n\nRefresh Token:\n" + refreshToken.getToken() + "</div>"
-                    + "<a class=\"link\" href=\"/admin/login\">返回管理員登入頁</a>"
-                    + "</div></body></html>";
+                // Set refresh token as HttpOnly secure cookie and redirect to admin dashboard
+                    ResponseCookie cookie = ResponseCookie.from("refreshToken", refreshToken.getToken())
+                        .httpOnly(true)
+                        .secure(false) // set to true in production with HTTPS
+                        .path("/")
+                        .maxAge(Duration.ofDays(30))
+                        .sameSite("Lax")
+                        .build();
 
-            return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(html);
+                HttpHeaders headers = new HttpHeaders();
+                headers.add(HttpHeaders.SET_COOKIE, cookie.toString());
+                // Optionally the access token can be exchanged by the admin SPA via /api/auth/refresh
+                // Redirect to backend admin UI route (stay on localhost:8080)
+                headers.setLocation(URI.create("/admin/courts"));
+                return new ResponseEntity<>(headers, HttpStatus.SEE_OTHER);
 
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

@@ -19,6 +19,8 @@ public class BookingResponse {
     private LocalDateTime startTime;
     private LocalDateTime endTime;
     private Integer totalFee;
+    private String promoCode;      // 套用的折扣碼 (例如 "SUMMER2026")
+    private Integer discountAmount; // 折扣金額
     private String status;
     private boolean checkedIn;
     private LocalDateTime checkInTime;
@@ -34,6 +36,11 @@ public class BookingResponse {
                 .courtName(booking.getCourt().getName())
                 .startTime(booking.getStartTime())
                 .endTime(booking.getEndTime())
+
+                // 🎯 判斷是否有套用折扣碼 (避免 NullPointerException)
+                .promoCode(booking.getPromoCode() != null ? booking.getPromoCode().getCode() : null)
+                .discountAmount(booking.getDiscountAmount() != null ? booking.getDiscountAmount() : 0)
+
                 .totalFee(booking.getTotalFee())
                 .status(booking.getStatus())
                 .checkedIn(booking.isCheckedIn())
@@ -42,4 +49,5 @@ public class BookingResponse {
                 .createdAt(booking.getCreatedAt())
                 .build();
     }
+
 }

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>後端 管理面板 - Courts</title>
+  <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px;}button{margin:6px 0;padding:8px 12px}</style>
+</head>
+<body>
+  <h1>管理面板（後端）</h1>
+  <p>歡迎。這些頁面由後端提供，登入後會停留在 <strong>localhost:8080</strong>.</p>
+
+  <div id="tokenArea">按下下方按鈕來以 HttpOnly refresh cookie 換取 Access Token。</div>
+  <button id="btnRefresh">取得 Access Token</button>
+
+  <h2>操作</h2>
+  <ul>
+    <li><a href="/admin-bookings.html">管理預約</a></li>
+    <li><a href="/admin-users.html">管理使用者</a></li>
+  </ul>
+
+  <h2>球場清單（管理）</h2>
+  <div id="courtsList"></div>
+
+  <script>
+    async function loadCourts() {
+      if (!accessToken) { document.getElementById('courtsList').innerText = '請先取得 Access Token'; return; }
+      const res = await fetch('/api/v1/admin/courts', { headers: { 'Authorization': 'Bearer ' + accessToken } });
+      if (!res.ok) { document.getElementById('courtsList').innerText = '載入失敗'; return; }
+      const data = await res.json();
+      const html = ['<table><tr><th>ID</th><th>Name</th><th>Type</th><th>Status</th><th>Action</th></tr>'];
+      for (const c of data) {
+        html.push(`<tr><td>${c.id}</td><td>${c.name}</td><td>${c.type}</td><td>${c.status}</td><td><button onclick="deleteCourt(${c.id})">刪除</button></td></tr>`);
+      }
+      html.push('</table>');
+      document.getElementById('courtsList').innerHTML = html.join('');
+    }
+
+    async function deleteCourt(id) {
+      if (!confirm('確定刪除球場? 此動作不可回復')) return;
+      const res = await fetch('/api/v1/admin/courts/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + accessToken } });
+      if (res.status === 204) { alert('刪除成功'); await loadCourts(); }
+      else { const txt = await res.text(); alert('刪除失敗: ' + txt); }
+    }
+
+    // override earlier btn handler to also load courts after refresh
+    const oldHandler = document.getElementById('btnRefresh').onclick;
+    document.getElementById('btnRefresh').addEventListener('click', async () => { try { await (async ()=>{ const res = await fetch('/api/auth/refresh/cookie', { method: 'GET' }); if (!res.ok) throw new Error('刷新失敗'); const body = await res.json(); accessToken = body.accessToken; document.getElementById('tokenArea').innerText = 'Access Token ready'; await loadCourts(); })(); } catch(e){ document.getElementById('tokenArea').innerText = '刷新失敗，請重新登入。'; }});
+  </script>
+
+  <script>
+    let accessToken = null;
+    document.getElementById('btnRefresh').addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/auth/refresh/cookie', { method: 'GET' });
+        if (!res.ok) throw new Error('刷新失敗');
+        const body = await res.json();
+        accessToken = body.accessToken;
+        document.getElementById('tokenArea').innerText = 'Access Token: ' + accessToken;
+      } catch (e) {
+        document.getElementById('tokenArea').innerText = '刷新失敗，請重新登入。';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -53,4 +53,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     // 4. 🎯 (連動新欄位) 統計使用者的爽約 (NO_SHOW) 次數，方便做黑名單機制
     long countByUserIdAndCheckInStatus(Long userId, CheckInStatus checkInStatus);
+
+    // 計算指定球場是否有任何預約
+    long countByCourtId(Long courtId);
+
+    // 5. 🎯 新增 ADMIN 收益報表查詢（按月統計已確認/已完成的預約營收）
+    @Query("SELECT " +
+            "  FUNCTION('TO_CHAR', b.startTime, 'YYYY-MM') AS yearMonth, " +
+            "  SUM(b.totalFee) AS totalRevenue, " +
+            "  COUNT(b.id) AS totalBookings " +
+            "FROM Booking b " +
+            "WHERE b.status IN ('CONFIRMED', 'COMPLETED') " +
+            "GROUP BY FUNCTION('TO_CHAR', b.startTime, 'YYYY-MM') " +
+            "ORDER BY yearMonth DESC")
+    List<MonthlyRevenueProjection> findMonthlyRevenueReport();
 }

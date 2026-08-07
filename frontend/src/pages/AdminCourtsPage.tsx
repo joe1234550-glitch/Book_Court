@@ -22,6 +22,8 @@ import {
   DollarOutlined,
 } from '@ant-design/icons';
 import { Court, CourtType, CourtStatus } from '../types';
+import api from '../api/client';
+import { useAuthStore } from '../store/authStore';
 import { courtApi } from '../api/courtApi';
 import {
   courtTypeLabels,
@@ -52,7 +54,27 @@ export const AdminCourtsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadCourts();
+    const doInit = async () => {
+      try {
+        // Try to refresh via HttpOnly cookie (backend sets cookie on admin login)
+        const resp = await api.get('/auth/refresh/cookie', { withCredentials: true });
+        const data = resp.data;
+        if (data && data.accessToken) {
+          useAuthStore.getState().login({
+            accessToken: data.accessToken,
+            refreshToken: data.refreshToken,
+            userId: data.userId,
+            username: data.username,
+            roles: data.roles,
+          });
+        }
+      } catch (err) {
+        // ignore, may be not logged in
+      }
+      await loadCourts();
+    };
+
+    doInit();
   }, []);
 
   const handleCreate = async (values: {
@@ -158,6 +180,24 @@ export const AdminCourtsPage: React.FC = () => {
       key: 'description',
       ellipsis: true,
       render: (desc: string) => desc || <Text type="secondary">無</Text>,
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 140,
+      render: (_: any, record: Court) => (
+        <Space>
+          <Button danger size="small" onClick={async () => {
+            try {
+              await adminApi.deleteCourt(record.id);
+              message.success('已刪除球場');
+              await loadCourts();
+            } catch (err: any) {
+              message.error(err.response?.data || '刪除失敗');
+            }
+          }}>刪除</Button>
+        </Space>
+      ),
     },
   ];
 

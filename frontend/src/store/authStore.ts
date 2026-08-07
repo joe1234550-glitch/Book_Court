@@ -39,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: data.refreshToken,
         userId: data.userId,
         username: data.username,
-        roles: data.roles,
+        roles: data.roles || [],
         isAuthenticated: true,
       }),
 
@@ -57,7 +57,11 @@ export const useAuthStore = create<AuthState>()(
         isAuthenticated: false,
       }),
 
-      isAdmin: () => get().roles.includes('ROLE_ADMIN'),
+      // 修正：同時檢查 ROLE_ADMIN 與 ADMIN，避免後端字串格式不一致
+      isAdmin: () => {
+        const roles = get().roles || [];
+        return roles.includes('ROLE_ADMIN') || roles.includes('ADMIN');
+      },
     }),
     {
       name: 'auth-storage',

@@ -83,18 +83,22 @@ export const BookingsPage: React.FC = () => {
     }
   };
 
+  // 判斷是否可取消：非已取消、尚未報到、且尚未過期
   const canCancel = (booking: BookingResponse) => {
+    const isCheckedIn = booking.checkInStatus === 'CHECKED_IN';
     return (
       booking.status !== 'CANCELLED' &&
-      !booking.checkedIn &&
+      !isCheckedIn &&
       dayjs().isBefore(dayjs(booking.startTime))
     );
   };
 
+  // 判斷是否可報到：已確認狀態、尚未報到、於開始前30分鐘至結束時間內
   const canCheckIn = (booking: BookingResponse) => {
+    const isCheckedIn = booking.checkInStatus === 'CHECKED_IN';
     return (
       booking.status === 'CONFIRMED' &&
-      !booking.checkedIn &&
+      !isCheckedIn &&
       dayjs().isAfter(dayjs(booking.startTime).subtract(30, 'minute')) &&
       dayjs().isBefore(dayjs(booking.endTime))
     );
@@ -166,9 +170,9 @@ export const BookingsPage: React.FC = () => {
       dataIndex: 'checkInStatus',
       key: 'checkInStatus',
       render: (status: string, record: BookingResponse) => (
-        <Space>
+        <Space direction="vertical" size={0}>
           <Tag color={checkInStatusColors[status as keyof typeof checkInStatusColors] || 'default'}>
-            {checkInStatusLabels[status as keyof typeof checkInStatusLabels] || status}
+            {checkInStatusLabels[status as keyof typeof checkInStatusLabels] || status || '未報到'}
           </Tag>
           {record.checkInTime && (
             <Tooltip title="實際報到時間">
@@ -245,8 +249,6 @@ export const BookingsPage: React.FC = () => {
   const filterPast = (b: BookingResponse) =>
     b.status === 'CANCELLED' || dayjs(b.endTime).isBefore(dayjs());
 
-  const filterCancelled = (b: BookingResponse) => b.status === 'CANCELLED';
-
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -303,6 +305,7 @@ export const BookingsPage: React.FC = () => {
         />
       </Spin>
 
+      {/* 預約細節 Modal */}
       <Modal
         title="預約細節"
         open={!!detailBooking}
@@ -335,14 +338,14 @@ export const BookingsPage: React.FC = () => {
                 <Tag color="green">NT${detailBooking.totalFee}</Tag>
               </Descriptions.Item>
               <Descriptions.Item label="預約狀態">
-                <Tag color={bookingStatusColors[detailBooking.status]}>
-                  {bookingStatusLabels[detailBooking.status]}
+                <Tag color={bookingStatusColors[detailBooking.status] || 'default'}>
+                  {bookingStatusLabels[detailBooking.status] || detailBooking.status}
                 </Tag>
               </Descriptions.Item>
               <Descriptions.Item label="報到狀態">
                 <Space>
-                  <Tag color={checkInStatusColors[detailBooking.checkInStatus]}>
-                    {checkInStatusLabels[detailBooking.checkInStatus]}
+                  <Tag color={checkInStatusColors[detailBooking.checkInStatus as keyof typeof checkInStatusColors] || 'default'}>
+                    {checkInStatusLabels[detailBooking.checkInStatus as keyof typeof checkInStatusLabels] || detailBooking.checkInStatus || '未報到'}
                   </Tag>
                   {detailBooking.checkInTime && (
                     <Text type="secondary">
@@ -357,6 +360,7 @@ export const BookingsPage: React.FC = () => {
         )}
       </Modal>
 
+      {/* QR Code Modal */}
       <Modal
         title={
           <Space>
@@ -410,7 +414,7 @@ export const BookingsPage: React.FC = () => {
             <Alert
               style={{ marginTop: 16 }}
               message="使用方式"
-              description="請於預約時間前30分鐘至球場現場，掃描此QR Code或由櫃檯人員協助報到。"
+              description="請於預約時間前 30 分鐘至球場現場，掃描此 QR Code 或由櫃檯人員協助報到。"
               type="info"
               showIcon
             />

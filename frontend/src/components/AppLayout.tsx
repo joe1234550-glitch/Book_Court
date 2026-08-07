@@ -7,6 +7,7 @@ import {
   SettingOutlined,
   TeamOutlined,
   TrophyOutlined,
+  DollarOutlined, // 1. 補上財務報表的圖示
 } from '@ant-design/icons';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -52,6 +53,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
     { key: '/profile', icon: <UserOutlined />, label: <Link to="/profile">個人資料</Link> },
   ];
 
+  // 2. 補上財務報表選單，並在開發時加入除錯防護
   const adminMenu = isAdmin()
     ? [
         {
@@ -62,6 +64,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             { key: '/admin/courts', icon: <TrophyOutlined />, label: <Link to="/admin/courts">球場管理</Link> },
             { key: '/admin/bookings', icon: <CalendarOutlined />, label: <Link to="/admin/bookings">預約管理</Link> },
             { key: '/admin/users', icon: <TeamOutlined />, label: <Link to="/admin/users">使用者管理</Link> },
+            { key: '/admin/financial', icon: <DollarOutlined />, label: <Link to="/admin/financial">財務報表</Link> }, // 👈 新增這行
           ],
         },
       ]

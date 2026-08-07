@@ -10,6 +10,7 @@ import { ProfilePage } from '../pages/ProfilePage';
 import { AdminCourtsPage } from '../pages/AdminCourtsPage';
 import { AdminUsersPage } from '../pages/AdminUsersPage';
 import { AdminBookingsPage } from '../pages/AdminBookingsPage';
+import { FinancialReportPage } from '../pages/FinancialReportPage'; // 1. 匯入財務報表
 
 export const AppRouter: React.FC = () => {
   return (
@@ -89,6 +90,18 @@ export const AppRouter: React.FC = () => {
             <ProtectedRoute requireAdmin>
               <AppLayout>
                 <AdminUsersPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* 2. 補上財務報表路由 */}
+        <Route
+          path="/admin/financial"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AppLayout>
+                <FinancialReportPage />
               </AppLayout>
             </ProtectedRoute>
           }
