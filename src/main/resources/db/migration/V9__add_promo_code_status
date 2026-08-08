@@ -1,0 +1,1 @@
+UPDATE promo_codes SET enabled = 1 WHERE id = 1;
