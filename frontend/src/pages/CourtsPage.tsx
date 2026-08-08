@@ -1,357 +1,369 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
-  Row,
-  Col,
-  Tag,
   Button,
-  Typography,
-  Empty,
-  Spin,
-  Modal,
-  Form,
   DatePicker,
   TimePicker,
-  Space,
-  Divider,
+  Modal,
+  Input,
   message,
-  Alert,
+  Typography,
+  Tag,
+  Row,
+  Col,
+  Space,
+  Form,
+  Divider,
+  Spin,
 } from 'antd';
-import { TrophyOutlined, ClockCircleOutlined, DollarOutlined } from '@ant-design/icons';
+import { TagOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
-import { useNavigate } from 'react-router-dom';
-import { Court, BookingResponse } from '../types';
-import { courtApi } from '../api/courtApi';
-import { bookingApi } from '../api/bookingApi';
-import { useAuthStore } from '../store/authStore';
-import {
-  courtTypeLabels,
-  courtStatusLabels,
-  courtStatusColors,
-} from '../utils/formatters';
+import client from '../api/client';
 
-const { Title, Text, Paragraph } = Typography;
-const { RangePicker: TimeRangePicker } = TimePicker;
+const { Title, Text } = Typography;
+
+interface Court {
+  id: number;
+  name: string;
+  hourlyRate: number;
+  description?: string;
+}
+
+interface ExistingBooking {
+  courtId?: number;
+  court?: { id: number };
+  startTime?: string;
+  start_time?: string;
+  endTime?: string;
+  end_time?: string;
+  status?: string;
+}
 
 export const CourtsPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
   const [courts, setCourts] = useState<Court[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedCourt, setSelectedCourt] = useState<Court | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs());
-  const [bookingsForDay, setBookingsForDay] = useState<BookingResponse[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // 日期與時間
   const [form] = Form.useForm();
+  const [bookingDate, setBookingDate] = useState<Dayjs | null>(dayjs());
+  const [timeRange, setTimeRange] = useState<[Dayjs, Dayjs] | null>(null);
+
+  // 已預約時段清單與載入狀態
+  const [existingBookings, setExistingBookings] = useState<ExistingBooking[]>([]);
+  const [loadingBookings, setLoadingBookings] = useState<boolean>(false);
+
+  // 折扣碼相關 State
+  const [promoCodeInput, setPromoCodeInput] = useState<string>('');
+  const [appliedPromoCode, setAppliedPromoCode] = useState<string>('');
+  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [validatingCode, setValidatingCode] = useState<boolean>(false);
 
   useEffect(() => {
-    loadCourts();
+    fetchCourts();
   }, []);
 
+  // 當選擇球場、日期變更或開啟 Modal 時，自動查詢已被預約的時段
   useEffect(() => {
-    if (selectedCourt) {
-      loadDayBookings();
+    if (selectedCourt && bookingDate && isModalOpen) {
+      fetchExistingBookings(selectedCourt.id, bookingDate);
     }
-  }, [selectedCourt, selectedDate]);
+  }, [selectedCourt, bookingDate, isModalOpen]);
 
-  const loadCourts = async () => {
-    setLoading(true);
+  const fetchCourts = async () => {
     try {
-      const data = await courtApi.getAvailableCourts();
-      setCourts(data);
+      const res = await client.get('/v1/courts');
+      setCourts(res.data?.data ?? res.data ?? []);
     } catch (err) {
-      message.error('載入球場清單失敗');
-    } finally {
-      setLoading(false);
+      message.error('無法取得球場資料');
     }
   };
 
-  const loadDayBookings = async () => {
-    if (!selectedCourt) {
-      setBookingsForDay([]);
-      return;
-    }
-
+  // 🎯 強化版：向後端取得預約，並兼容各種時區與欄位格式進行嚴格比對
+  const fetchExistingBookings = async (courtId: number, date: Dayjs) => {
+    setLoadingBookings(true);
     try {
-      const bookings = await bookingApi.getCourtBookingsByDate(
-        selectedCourt.id,
-        selectedDate.format('YYYY-MM-DD')
-      );
-      setBookingsForDay(bookings);
-    } catch {
-      setBookingsForDay([]);
+      const res = await client.get('/v1/bookings');
+      // 自動解套不同的層級結構
+      const rawList = res.data?.data ?? res.data ?? [];
+      const allBookings: ExistingBooking[] = Array.isArray(rawList) ? rawList : [];
+
+      const selectedDateStr = date.format('YYYY-MM-DD');
+
+      // 篩選出同球場、同日期、且非取消狀態的預約
+      const filtered = allBookings.filter((b) => {
+        const cId = b.courtId ?? b.court?.id;
+        const startRaw = b.startTime || b.start_time;
+
+        if (!cId || !startRaw) return false;
+
+        // 使用本地時間轉換，避免 UTC 導致的跨日問題
+        const bDateStr = dayjs(startRaw).format('YYYY-MM-DD');
+        const isNotCanceled = b.status !== 'CANCELLED' && b.status !== 'CANCELED';
+
+        return Number(cId) === Number(courtId) && bDateStr === selectedDateStr && isNotCanceled;
+      });
+
+      console.log('當日球場有效預約資料：', filtered);
+      setExistingBookings(filtered);
+    } catch (err) {
+      console.error('取得預約清單失敗：', err);
+      setExistingBookings([]);
+    } finally {
+      setLoadingBookings(false);
     }
   };
 
-  const handleOpenBooking = (court: Court) => {
-    if (!isAuthenticated) {
-      message.warning('請先登入再進行預約');
-      navigate('/login');
-      return;
-    }
+  const handleOpenBookingModal = (court: Court) => {
     setSelectedCourt(court);
-    form.resetFields();
+    setPromoCodeInput('');
+    setAppliedPromoCode('');
+    setDiscountAmount(0);
+    setTimeRange(null);
     setIsModalOpen(true);
-    loadDayBookings();
   };
 
-  const isSlotBooked = (start: Dayjs, end: Dayjs): boolean => {
-    return bookingsForDay.some((b) => {
-      const bStart = dayjs(b.startTime);
-      const bEnd = dayjs(b.endTime);
-      return start.isBefore(bEnd) && end.isAfter(bStart) && b.status !== 'CANCELLED';
-    });
+  const disabledHours = () => {
+    const hours = [];
+    for (let i = 0; i < 8; i++) hours.push(i);
+    for (let i = 22; i < 24; i++) hours.push(i);
+    return hours;
   };
 
-  const handleBooking = async (values: {
-    timeRange: [Dayjs, Dayjs];
-  }) => {
-    if (!selectedCourt) return;
-    const [startTime, endTime] = values.timeRange;
-    const start = selectedDate
-      .hour(startTime.hour())
-      .minute(startTime.minute())
-      .second(0);
-    const end = selectedDate
-      .hour(endTime.hour())
-      .minute(endTime.minute())
-      .second(0);
-
-    if (start.isBefore(dayjs())) {
-      message.error('預約時間不能是過去時間');
-      return;
-    }
-    if (start.isAfter(end) || start.isSame(end)) {
-      message.error('結束時間必須晚於開始時間');
-      return;
-    }
-    if (isSlotBooked(start, end)) {
-      message.error('此時段已被預約，請選擇其他時間');
+  const handleApplyPromoCode = async () => {
+    const code = promoCodeInput.trim();
+    if (!code) {
+      message.warning('請輸入折扣碼');
       return;
     }
 
-    setBookingLoading(true);
+    setValidatingCode(true);
     try {
-      const duration = Math.ceil(end.diff(start, 'minute') / 60);
-      const totalFee = duration * selectedCourt.hourlyRate;
+      const res = await client.get('/v1/coupons/validate', {
+        params: { code },
+      });
 
-      // 🎯 修正點 1：將計算出來的 totalFee 帶入 API 請求
-      await bookingApi.createBooking({
-        courtId: selectedCourt.id,
-        startTime: start.format('YYYY-MM-DDTHH:mm:ss'),
-        endTime: end.format('YYYY-MM-DDTHH:mm:ss'),
-        totalFee: totalFee,
-      } as any);
+      const promoData = res.data;
+      const discount = promoData.discountAmount || 0;
 
-      message.success(
-        `預約成功！${selectedCourt.name}\n${start.format('YYYY-MM-DD HH:mm')} - ${end.format('HH:mm')}\n費用: NT$${totalFee}`
-      );
-      setIsModalOpen(false);
-      await loadDayBookings();
+      setDiscountAmount(discount);
+      setAppliedPromoCode(code);
+      message.success(`折扣碼 [${code}] 套用成功！可折抵 NT$${discount}`);
     } catch (err: any) {
-      // 🎯 修正點 2：解析後端回傳的物件訊息，確保能正常印出文字
-      if (err.response?.status === 409) {
-        message.error('時段衝突！該球場此時段已被預約');
-      } else {
-        const errorMsg = err.response?.data?.message || err.response?.data;
-        message.error(typeof errorMsg === 'string' ? errorMsg : '預約失敗，請稍後再試');
-      }
+      const errorMsg =
+        err.response?.data?.message || err.response?.data || '無效或已過期的折扣碼';
+      message.error(errorMsg);
+      setDiscountAmount(0);
+      setAppliedPromoCode('');
     } finally {
-      setBookingLoading(false);
+      setValidatingCode(false);
     }
   };
 
-  const renderCourtTypeIcon = (type: string) => {
-    switch (type) {
-      case 'HARD': return '🟦';
-      case 'GRASS': return '🟩';
-      case 'CLAY': return '🟫';
-      default: return '🎾';
+  const calculateOriginalFee = (): number => {
+    if (!selectedCourt || !timeRange) return 0;
+    const hours = timeRange[1].diff(timeRange[0], 'hour', true);
+    return Math.ceil(hours) * selectedCourt.hourlyRate;
+  };
+
+  const originalFee = calculateOriginalFee();
+  const finalFee = Math.max(0, originalFee - discountAmount);
+
+  const handleConfirmBooking = async () => {
+    try {
+      await form.validateFields();
+      if (!selectedCourt || !bookingDate || !timeRange) {
+        message.error('請填寫完整預約時間');
+        return;
+      }
+
+      setSubmitting(true);
+
+      const dateStr = bookingDate.format('YYYY-MM-DD');
+      const startIso = `${dateStr}T${timeRange[0].format('HH:mm:ss')}`;
+      const endIso = `${dateStr}T${timeRange[1].format('HH:mm:ss')}`;
+
+      const payload = {
+        courtId: selectedCourt.id,
+        startTime: startIso,
+        endTime: endIso,
+        promoCode: appliedPromoCode || null,
+      };
+
+      const res = await client.post('/v1/bookings', payload);
+      const bookingData = res.data?.data ?? res.data;
+
+      message.success(`預約成功！實付金額：NT$${bookingData.totalFee ?? finalFee}`);
+
+      setIsModalOpen(false);
+      form.resetFields();
+      setAppliedPromoCode('');
+      setPromoCodeInput('');
+      setDiscountAmount(0);
+
+      // 預約成功後立即重新拉取最新的已被預約狀態
+      if (selectedCourt && bookingDate) {
+        fetchExistingBookings(selectedCourt.id, bookingDate);
+      }
+    } catch (err: any) {
+      const errorMsg =
+        err.response?.data?.message || err.response?.data || '預約失敗，請重新檢查';
+      message.error(errorMsg);
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  // 🎯 精準時間重疊比對：判斷 08:00 - 22:00 間該 1 小時區間是否被佔用
+  const renderTimeSlots = () => {
+    const slots = [];
+    const dateStr = bookingDate ? bookingDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+
+    for (let h = 8; h < 22; h++) {
+      const hourStr = h.toString().padStart(2, '0');
+      const slotStart = dayjs(`${dateStr}T${hourStr}:00:00`);
+      const slotEnd = dayjs(`${dateStr}T${hourStr}:59:59`);
+
+      // 檢查此時段是否與已成立的預約重疊
+      const isBooked = existingBookings.some((b) => {
+        const startRaw = b.startTime || b.start_time;
+        const endRaw = b.endTime || b.end_time;
+        if (!startRaw || !endRaw) return false;
+
+        const bStart = dayjs(startRaw);
+        const bEnd = dayjs(endRaw);
+
+        // 如果 slotStart ~ slotEnd 時間區間與預約時間有交集
+        return slotStart.isBefore(bEnd) && slotEnd.isAfter(bStart);
+      });
+
+      slots.push(
+        <Tag
+          key={h}
+          color={isBooked ? 'red' : 'green'}
+          style={{ marginBottom: 6, padding: '4px 8px', fontSize: '13px' }}
+        >
+          {hourStr}:00 ~ {(h + 1).toString().padStart(2, '0')}:00 {isBooked ? '❌ (已預約)' : '✅ (可預約)'}
+        </Tag>
+      );
+    }
+    return slots;
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={2} style={{ marginBottom: 8 }}>
-          <TrophyOutlined /> 球場預約
-        </Title>
-        <Text type="secondary">選擇您喜愛的球場，預約美好時光！</Text>
-      </div>
+    <div style={{ padding: '24px' }}>
+      <Title level={2}>球場預約</Title>
 
-      <Space direction="vertical" style={{ width: '100%', marginBottom: 24 }}>
-        <Text strong>選擇預約日期</Text>
-        <DatePicker
-          value={selectedDate}
-          onChange={(date) => date && setSelectedDate(date)}
-          disabledDate={(current) => current && current.isBefore(dayjs().startOf('day'))}
-          size="large"
-        />
-      </Space>
-      <Spin spinning={loading} size="large">
-        {courts.length === 0 && !loading ? (
-          <Empty description="目前沒有開放中的球場" />
-        ) : (
-          <Row gutter={[24, 24]}>
-            {courts.map((court) => (
-              <Col xs={24} md={12} lg={8} key={court.id}>
-                <Card
-                  hoverable
-                  actions={[
-                    <Button
-                      key="book"
-                      type="primary"
-                      size="large"
-                      onClick={() => handleOpenBooking(court)}
-                      disabled={court.status !== 'AVAILABLE'}
-                    >
-                      立即預約
-                    </Button>,
-                  ]}
-                >
-                  <Card.Meta
-                    avatar={
-                      <div style={{ fontSize: 36 }}>
-                        {renderCourtTypeIcon(court.type)}
-                      </div>
-                    }
-                    title={
-                      <Space>
-                        <Text strong style={{ fontSize: 18 }}>
-                          {court.name}
-                        </Text>
-                        <Tag color={courtStatusColors[court.status]}>
-                          {courtStatusLabels[court.status]}
-                        </Tag>
-                      </Space>
-                    }
-                    description={
-                      <div>
-                        <Space style={{ marginBottom: 8 }}>
-                          <Tag color="blue">{courtTypeLabels[court.type]}</Tag>
-                          <Tag>
-                            <DollarOutlined /> NT${court.hourlyRate}/小時
-                          </Tag>
-                        </Space>
-                        <Paragraph
-                          ellipsis={{ rows: 2 }}
-                          style={{ marginBottom: 0, minHeight: 44 }}
-                        >
-                          {court.description || '暫無描述'}
-                        </Paragraph>
-                      </div>
-                    }
-                  />
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        )}
-      </Spin>
+      <Row gutter={[16, 16]}>
+        {courts.map((court) => (
+          <Col xs={24} sm={12} md={8} key={court.id}>
+            <Card title={court.name} hoverable>
+              <p>{court.description || '標準專用球場'}</p>
+              <p>
+                <strong>每小時費用：</strong> NT$ {court.hourlyRate}
+              </p>
+              <Button type="primary" block onClick={() => handleOpenBookingModal(court)}>
+                立即預約
+              </Button>
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
       <Modal
-        title={
-          selectedCourt ? (
-            <Space>
-              <span style={{ fontSize: 24 }}>
-                {renderCourtTypeIcon(selectedCourt.type)}
-              </span>
-              <span>預約 {selectedCourt.name}</span>
-            </Space>
-          ) : (
-            '預約球場'
-          )
-        }
+        title={`預約 - ${selectedCourt?.name || ''}`}
         open={isModalOpen}
+        onOk={handleConfirmBooking}
         onCancel={() => setIsModalOpen(false)}
-        footer={null}
-        width={560}
-        destroyOnClose
+        confirmLoading={submitting}
+        okText="確認預約"
+        cancelText="取消"
+        width={650}
       >
-        {selectedCourt && (
-          <>
-            <Alert
-              message={
-                <Space>
-                  <ClockCircleOutlined />
-                  費用計算：NT${selectedCourt.hourlyRate} × 小時數（無條件進位）
-                </Space>
-              }
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
+        <Form form={form} layout="vertical">
+          <Form.Item label="預約日期" required>
+            <DatePicker
+              style={{ width: '100%' }}
+              value={bookingDate}
+              onChange={(date) => setBookingDate(date)}
             />
+          </Form.Item>
 
-            <Form form={form} layout="vertical" onFinish={handleBooking}>
-              <Form.Item label="預約日期">
-                <Text>{selectedDate.format('YYYY-MM-DD')}</Text>
-              </Form.Item>
-
-              <Form.Item
-                label="選擇預約時段"
-                name="timeRange"
-                rules={[{ required: true, message: '請選擇預約時段' }]}
-              >
-                <TimeRangePicker
-                  format="HH:mm"
-                  minuteStep={30}
-                  size="large"
-                  style={{ width: '100%' }}
-                  disabledHours={() => {
-                    const disabled: number[] = [];
-                    for (let i = 0; i < 6; i++) disabled.push(i);
-                    for (let i = 22; i <= 23; i++) disabled.push(i);
-                    return disabled;
-                  }}
-                />
-              </Form.Item>
-
-              <Divider orientation="left">
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  📅 {selectedDate.format('YYYY-MM-DD')} 當日已預約時段
-                </Text>
-              </Divider>
-
-              <div style={{ marginBottom: 16 }}>
-                {bookingsForDay.filter((b) => b.status !== 'CANCELLED').length === 0 ? (
-                  <Text type="secondary">當日尚無預約，時段全部開放！</Text>
-                ) : (
-                  <Space wrap>
-                    {bookingsForDay
-                      .filter((b) => b.status !== 'CANCELLED')
-                      .map((b) => (
-                        <Tag color="orange" key={b.id}>
-                          {dayjs(b.startTime).format('HH:mm')} -{' '}
-                          {dayjs(b.endTime).format('HH:mm')}
-                          <Tag color="red" style={{ marginLeft: 4 }}>
-                            已預約
-                          </Tag>
-                        </Tag>
-                      ))}
-                  </Space>
-                )}
+          {/* 🎯 當日已被預約時段看板 */}
+          <div style={{ marginBottom: 16, background: '#fafafa', border: '1px solid #f0f0f0', padding: 12, borderRadius: 6 }}>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>
+              當日各時段預約狀況 (08:00 - 22:00)：
+            </Text>
+            {loadingBookings ? (
+              <Spin size="small" />
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                {renderTimeSlots()}
               </div>
+            )}
+          </div>
 
-              <Form.Item style={{ marginBottom: 0 }}>
-                <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-                  <Button onClick={() => setIsModalOpen(false)} size="large">
-                    取消
-                  </Button>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={bookingLoading}
-                    size="large"
-                  >
-                    確認預約
-                  </Button>
-                </Space>
-              </Form.Item>
-            </Form>
-          </>
-        )}
+          <Form.Item label="選擇預約時段 (開放時段：08:00 - 22:00)" required>
+            <TimePicker.RangePicker
+              style={{ width: '100%' }}
+              format="HH:mm"
+              minuteStep={30}
+              disabledHours={disabledHours}
+              onChange={(times) => setTimeRange(times as [Dayjs, Dayjs])}
+            />
+          </Form.Item>
+
+          <Form.Item label="優惠折扣碼">
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                placeholder="請輸入折扣碼 (例：rf001)"
+                prefix={<TagOutlined />}
+                value={promoCodeInput}
+                onChange={(e) => setPromoCodeInput(e.target.value)}
+              />
+              <Button
+                type="primary"
+                loading={validatingCode}
+                onClick={handleApplyPromoCode}
+              >
+                確定
+              </Button>
+            </Space.Compact>
+            {appliedPromoCode && (
+              <div style={{ marginTop: 8 }}>
+                <Tag color="green" icon={<CheckCircleOutlined />}>
+                  已套用折扣碼：{appliedPromoCode} (折抵 NT${discountAmount})
+                </Tag>
+              </div>
+            )}
+          </Form.Item>
+
+          {timeRange && (
+            <>
+              <Divider style={{ margin: '12px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <Text>原價費用：</Text>
+                <Text>NT$ {originalFee}</Text>
+              </div>
+              {discountAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Text type="success">折扣折抵：</Text>
+                  <Text type="success">- NT$ {discountAmount}</Text>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                <Text strong>應付總金額：</Text>
+                <Text strong style={{ fontSize: 18, color: '#1677ff' }}>
+                  NT$ {finalFee}
+                </Text>
+              </div>
+            </>
+          )}
+        </Form>
       </Modal>
     </div>
   );
 };
+
+export default CourtsPage;
