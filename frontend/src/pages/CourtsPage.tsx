@@ -136,11 +136,13 @@ export const CourtsPage: React.FC = () => {
       const duration = Math.ceil(end.diff(start, 'minute') / 60);
       const totalFee = duration * selectedCourt.hourlyRate;
 
-      const result = await bookingApi.createBooking({
+      // 🎯 修正點 1：將計算出來的 totalFee 帶入 API 請求
+      await bookingApi.createBooking({
         courtId: selectedCourt.id,
         startTime: start.format('YYYY-MM-DDTHH:mm:ss'),
         endTime: end.format('YYYY-MM-DDTHH:mm:ss'),
-      });
+        totalFee: totalFee,
+      } as any);
 
       message.success(
         `預約成功！${selectedCourt.name}\n${start.format('YYYY-MM-DD HH:mm')} - ${end.format('HH:mm')}\n費用: NT$${totalFee}`
@@ -148,10 +150,12 @@ export const CourtsPage: React.FC = () => {
       setIsModalOpen(false);
       await loadDayBookings();
     } catch (err: any) {
+      // 🎯 修正點 2：解析後端回傳的物件訊息，確保能正常印出文字
       if (err.response?.status === 409) {
         message.error('時段衝突！該球場此時段已被預約');
       } else {
-        message.error(err.response?.data || '預約失敗，請稍後再試');
+        const errorMsg = err.response?.data?.message || err.response?.data;
+        message.error(typeof errorMsg === 'string' ? errorMsg : '預約失敗，請稍後再試');
       }
     } finally {
       setBookingLoading(false);
