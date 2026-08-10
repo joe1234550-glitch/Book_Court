@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   Tag,
@@ -10,26 +10,27 @@ import {
   message,
   Popconfirm,
   Descriptions,
-  Form,       // 🎯 補上 Form
-  Input,      // 🎯 補上 Input
-  InputNumber,// 🎯 補上 InputNumber
-  Select,     // 🎯 補上 Select
-  DatePicker, // 🎯 補上 DatePicker
+  Form,
+  InputNumber,
+  Select,
+  DatePicker,
 } from 'antd';
 import {
   CalendarOutlined,
   CloseCircleOutlined,
   TrophyOutlined,
   DollarOutlined,
+  CreditCardOutlined,
+  RollbackOutlined, // 🎯 匯入退費圖示
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { BookingResponse } from '../types';
 import { adminApi } from '../api/adminApi';
+import { CheckoutModal } from '../components/CheckoutModal';
 import {
   formatDateTime,
   formatDate,
   formatTime,
-  calculateDuration,
   bookingStatusLabels,
   bookingStatusColors,
 } from '../utils/formatters';
@@ -42,6 +43,11 @@ export const AdminBookingsPage: React.FC = () => {
   const [detailBooking, setDetailBooking] = useState<BookingResponse | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editing, setEditing] = useState<BookingResponse | null>(null);
+
+  // 櫃檯結帳 Modal 狀態
+  const [checkoutBooking, setCheckoutBooking] = useState<BookingResponse | null>(null);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
   const [form] = Form.useForm();
 
   const loadBookings = async () => {
@@ -60,6 +66,7 @@ export const AdminBookingsPage: React.FC = () => {
     loadBookings();
   }, []);
 
+  // 取消預約
   const handleCancel = async (id: number) => {
     try {
       await adminApi.cancelBooking(id);
@@ -67,6 +74,17 @@ export const AdminBookingsPage: React.FC = () => {
       await loadBookings();
     } catch (err) {
       message.error('取消預約失敗，請確認權限');
+    }
+  };
+
+  // 🎯 下雨 / 人工退費處理
+  const handleRefund = async (id: number) => {
+    try {
+      await adminApi.refundBooking(id);
+      message.success('已完成退費手續並寫入財務沖銷紀錄');
+      await loadBookings();
+    } catch (err) {
+      message.error('退費失敗，請確認該預約狀態是否為已結帳');
     }
   };
 
@@ -89,9 +107,14 @@ export const AdminBookingsPage: React.FC = () => {
     setIsFormOpen(true);
   };
 
+  // 開啟結帳 Modal
+  const openCheckout = (b: BookingResponse) => {
+    setCheckoutBooking(b);
+    setIsCheckoutOpen(true);
+  };
+
   const submitForm = async (values: any) => {
     try {
-      // 轉換 DatePicker 時間為 ISO 字串供後端接收
       const payload = {
         ...values,
         startTime: values.startTime ? values.startTime.toISOString() : null,
@@ -179,14 +202,49 @@ export const AdminBookingsPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 220,
+      width: 320,
       render: (_: any, record: BookingResponse) => (
         <Space size="small" wrap>
+          {/* 🎯 1. 未結帳（CONFIRMED）：顯示【結帳】按鈕 */}
+          {record.status === 'CONFIRMED' && (
+            <Button
+              type="primary"
+              size="small"
+              icon={<CreditCardOutlined />}
+              onClick={() => openCheckout(record)}
+            >
+              結帳
+            </Button>
+          )}
+
+          {/* 🎯 2. 已結帳（COMPLETED）：顯示【已結帳】標籤與【退費】按鈕 */}
+          {record.status === 'COMPLETED' && (
+            <>
+              <Tag color="green">已結帳</Tag>
+              <Popconfirm
+                title="因天候/下雨退費？"
+                description="確定要辦理此筆預約退費嗎？"
+                onConfirm={() => handleRefund(record.id)}
+                okText="確認退費"
+                cancelText="取消"
+              >
+                <Button size="small" danger icon={<RollbackOutlined />}>
+                  退費
+                </Button>
+              </Popconfirm>
+            </>
+          )}
+
+          {/* 🎯 3. 已退款（REFUNDED）：顯示【已退款】標籤 */}
+          {record.status === 'REFUNDED' && <Tag color="volcano">已退款</Tag>}
+
           <Button type="link" onClick={() => setDetailBooking(record)}>
             詳細
           </Button>
           <Button type="link" onClick={() => openEdit(record)}>編輯</Button>
-          {record.status !== 'CANCELLED' && (
+
+          {/* 僅有未結帳與未處理的狀態可執行取消預約 */}
+          {record.status === 'CONFIRMED' && (
             <Popconfirm
               title="確定要取消此預約嗎？"
               onConfirm={() => handleCancel(record.id)}
@@ -210,7 +268,7 @@ export const AdminBookingsPage: React.FC = () => {
           <Title level={2} style={{ marginBottom: 8 }}>
             <CalendarOutlined /> 全部預約
           </Title>
-          <Text type="secondary">管理員可檢視與建立系統內所有使用者的球場預約紀錄</Text>
+          <Text type="secondary">管理員可檢視、編輯、現場結帳、下雨退費與管理球場預約紀錄</Text>
         </div>
         <Button type="primary" onClick={openCreate}>建立預約</Button>
       </div>
@@ -223,6 +281,14 @@ export const AdminBookingsPage: React.FC = () => {
           pagination={{ pageSize: 10 }}
         />
       </Spin>
+
+      {/* 櫃檯結帳 Modal */}
+      <CheckoutModal
+        open={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        bookingData={checkoutBooking}
+        onSuccess={loadBookings}
+      />
 
       {/* 編輯 / 建立彈窗 */}
       <Modal title={editing ? '編輯預約' : '建立預約'} open={isFormOpen} onCancel={() => setIsFormOpen(false)} footer={null}>
@@ -245,8 +311,9 @@ export const AdminBookingsPage: React.FC = () => {
           <Form.Item name="status" label="狀態" initialValue="CONFIRMED">
             <Select>
               <Select.Option value="CONFIRMED">已預約 (CONFIRMED)</Select.Option>
+              <Select.Option value="COMPLETED">已結帳 (COMPLETED)</Select.Option>
+              <Select.Option value="REFUNDED">已退款 (REFUNDED)</Select.Option>
               <Select.Option value="CANCELLED">已取消 (CANCELLED)</Select.Option>
-              <Select.Option value="COMPLETED">已完成 (COMPLETED)</Select.Option>
             </Select>
           </Form.Item>
           <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}>

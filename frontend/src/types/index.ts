@@ -75,3 +75,7 @@ export interface UpdateUserRequest {
   name?: string;
   email?: string;
 }
+export interface CheckoutRequest {
+  amount?: number;
+  paymentMethod?: string;
+}

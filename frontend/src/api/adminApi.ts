@@ -1,40 +1,50 @@
-import api from './client';
-import { BookingResponse, RegisterRequest, User } from '../types';
-
-export interface CreateBookingRequest {
-  courtId: number;
-  userId?: number;
-  startTime: string; // 格式需為 YYYY-MM-DDTHH:mm:ss
-  endTime: string;   // 格式需為 YYYY-MM-DDTHH:mm:ss
-  note?: string;
-}
+// src/api/adminApi.ts
+import client from './client'; // 使用您原本專案既有的 client
 
 export const adminApi = {
-  // 注意：若後端 API 路徑沒有 /api 前綴，baseURL 的 '/api' 需與此處協調
-  getAllBookings: () =>
-    api.get<BookingResponse[]>('/v1/admin/bookings').then((res) => res.data),
-
-  cancelBooking: (id: number) =>
-    api.patch<void>(`/v1/admin/bookings/${id}/cancel`).then((res) => res.data),
-
-  getAllUsers: () =>
-    api.get<User[]>('/v1/admin/users').then((res) => res.data),
-
-  createUser: (data: RegisterRequest) =>
-    api.post<User>('/v1/admin/users', data).then((res) => res.data),
-
-  updateUser: (id: number, data: Partial<User>) =>
-    api.put<User>(`/v1/admin/users/${id}`, data).then((res) => res.data),
-
-  getAllCourts: () =>
-    api.get('/v1/admin/courts').then((res) => res.data),
-
-  deleteCourt: (id: number) =>
-    api.delete<void>(`/v1/admin/courts/${id}`).then((res) => res.data),
-
-  createBooking: (data: CreateBookingRequest) =>
-    api.post<BookingResponse>('/v1/admin/bookings', data).then((res) => res.data),
-
-  updateBooking: (id: number, data: Partial<CreateBookingRequest>) =>
-    api.put<BookingResponse>(`/v1/admin/bookings/${id}`, data).then((res) => res.data),
+  // 取得所有使用者
+  getAllUsers: async () => {
+    const res = await client.get('/v1/admin/users');
+    return res.data?.data ?? res.data;
+  },
+  // 新增使用者
+  createUser: async (payload: any) => {
+    const res = await client.post('/v1/admin/users', payload);
+    return res.data?.data ?? res.data;
+  },
+  // 更新使用者
+  updateUser: async (id: number, payload: any) => {
+    const res = await client.put(`/v1/admin/users/${id}`, payload);
+    return res.data?.data ?? res.data;
+  },
+  // 取得所有預約紀錄
+  getAllBookings: async () => {
+    const res = await client.get('/v1/admin/bookings');
+    return res.data?.data ?? res.data;
+  },
+  // 取消預約
+  cancelBooking: async (id: number) => {
+    const res = await client.post(`/v1/admin/bookings/${id}/cancel`);
+    return res.data?.data ?? res.data;
+  },
+  // 退費
+  refundBooking: async (id: number) => {
+    const res = await client.post(`/v1/admin/bookings/${id}/refund`);
+    return res.data?.data ?? res.data;
+  },
+  // 更新預約
+  updateBooking: async (id: number, payload: any) => {
+    const res = await client.put(`/v1/admin/bookings/${id}`, payload);
+    return res.data?.data ?? res.data;
+  },
+  // 建立預約
+  createBooking: async (payload: any) => {
+    const res = await client.post('/v1/admin/bookings', payload);
+    return res.data?.data ?? res.data;
+  },
+// 🎯 補上結帳 API (請確認後端 endpoint 是否為 /v1/admin/bookings/{id}/checkout)
+  checkoutBooking: async (id: number, payload: { amount: number; paymentMethod: string; invoiceType: string }) => {
+    const res = await client.post(`/v1/admin/bookings/${id}/checkout`, payload);
+    return res.data?.data ?? res.data;
+  },
 };
