@@ -16,7 +16,8 @@ import {
   Divider,
   Spin,
 } from 'antd';
-import { TagOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { TagOutlined, CheckCircleOutlined } from '@font-awesome/fontawesome-free' ; // 若無圖示模組可替換為 antd 的 icon
+import { TagOutlined as AntdTagOutlined, CheckCircleOutlined as AntdCheckCircleOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
 import client from '../api/client';
 
@@ -80,35 +81,24 @@ export const CourtsPage: React.FC = () => {
     }
   };
 
-  // 🎯 強化版：向後端取得預約，並兼容各種時區與欄位格式進行嚴格比對
+// 🎯 1. 修正 API 路徑 (去除重複的 /api)
   const fetchExistingBookings = async (courtId: number, date: Dayjs) => {
     setLoadingBookings(true);
     try {
-      const res = await client.get('/v1/bookings');
-      // 自動解套不同的層級結構
+      const selectedDateStr = date.format('YYYY-MM-DD');
+
+      // 修正：發送 /v1/bookings/court/{courtId} (axios 會自動補上 baseURL 的 /api)
+      const res = await client.get(`/v1/bookings/court/${courtId}`, {
+        params: { date: selectedDateStr },
+      });
+
       const rawList = res.data?.data ?? res.data ?? [];
       const allBookings: ExistingBooking[] = Array.isArray(rawList) ? rawList : [];
 
-      const selectedDateStr = date.format('YYYY-MM-DD');
-
-      // 篩選出同球場、同日期、且非取消狀態的預約
-      const filtered = allBookings.filter((b) => {
-        const cId = b.courtId ?? b.court?.id;
-        const startRaw = b.startTime || b.start_time;
-
-        if (!cId || !startRaw) return false;
-
-        // 使用本地時間轉換，避免 UTC 導致的跨日問題
-        const bDateStr = dayjs(startRaw).format('YYYY-MM-DD');
-        const isNotCanceled = b.status !== 'CANCELLED' && b.status !== 'CANCELED';
-
-        return Number(cId) === Number(courtId) && bDateStr === selectedDateStr && isNotCanceled;
-      });
-
-      console.log('當日球場有效預約資料：', filtered);
-      setExistingBookings(filtered);
+      console.log('📌 [除錯] 成功拿到當日球場預約清單：', allBookings);
+      setExistingBookings(allBookings);
     } catch (err) {
-      console.error('取得預約清單失敗：', err);
+      console.error('❌ 取得預約清單失敗：', err);
       setExistingBookings([]);
     } finally {
       setLoadingBookings(false);
@@ -191,7 +181,8 @@ export const CourtsPage: React.FC = () => {
         promoCode: appliedPromoCode || null,
       };
 
-      const res = await client.post('/v1/bookings', payload);
+      // ⚠️ 如果 client.ts 的 baseURL 已含 /api，這裡請改為 `/v1/bookings`
+      const res = await client.post('/api/v1/bookings', payload);
       const bookingData = res.data?.data ?? res.data;
 
       message.success(`預約成功！實付金額：NT$${bookingData.totalFee ?? finalFee}`);
@@ -215,41 +206,47 @@ export const CourtsPage: React.FC = () => {
     }
   };
 
-  // 🎯 精準時間重疊比對：判斷 08:00 - 22:00 間該 1 小時區間是否被佔用
-  const renderTimeSlots = () => {
-    const slots = [];
-    const dateStr = bookingDate ? bookingDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
+ // 🎯 2. 精準時間戳比對 (無視時區字串解析差異)
+   const renderTimeSlots = () => {
+     const slots = [];
+     const dateStr = bookingDate ? bookingDate.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
 
-    for (let h = 8; h < 22; h++) {
-      const hourStr = h.toString().padStart(2, '0');
-      const slotStart = dayjs(`${dateStr}T${hourStr}:00:00`);
-      const slotEnd = dayjs(`${dateStr}T${hourStr}:59:59`);
+     for (let h = 8; h < 22; h++) {
+       const hourStr = h.toString().padStart(2, '0');
+       const nextHourStr = (h + 1).toString().padStart(2, '0');
 
-      // 檢查此時段是否與已成立的預約重疊
-      const isBooked = existingBookings.some((b) => {
-        const startRaw = b.startTime || b.start_time;
-        const endRaw = b.endTime || b.end_time;
-        if (!startRaw || !endRaw) return false;
+       // 建立 Slot 開始與結束的時間戳（ms）
+       const slotStartMs = new Date(`${dateStr}T${hourStr}:00:00`).getTime();
+       const slotEndMs = new Date(`${dateStr}T${nextHourStr}:00:00`).getTime();
 
-        const bStart = dayjs(startRaw);
-        const bEnd = dayjs(endRaw);
+       // 比對該 Slot 是否落在已預約的時間區間內
+       const isBooked = existingBookings.some((b) => {
+         const startRaw = b.startTime || b.start_time;
+         const endRaw = b.endTime || b.end_time;
+         if (!startRaw || !endRaw) return false;
 
-        // 如果 slotStart ~ slotEnd 時間區間與預約時間有交集
-        return slotStart.isBefore(bEnd) && slotEnd.isAfter(bStart);
-      });
+         const bStartMs = new Date(startRaw).getTime();
+         const bEndMs = new Date(endRaw).getTime();
 
-      slots.push(
-        <Tag
-          key={h}
-          color={isBooked ? 'red' : 'green'}
-          style={{ marginBottom: 6, padding: '4px 8px', fontSize: '13px' }}
-        >
-          {hourStr}:00 ~ {(h + 1).toString().padStart(2, '0')}:00 {isBooked ? '❌ (已預約)' : '✅ (可預約)'}
-        </Tag>
-      );
-    }
-    return slots;
-  };
+         // 區間交集判斷：(Slot 開始 < 預約結束) 且 (Slot 結束 > 預約開始)
+         const hasOverlap = slotStartMs < bEndMs && slotEndMs > bStartMs;
+         const isNotCanceled = b.status !== 'CANCELLED' && b.status !== 'CANCELED';
+
+         return hasOverlap && isNotCanceled;
+       });
+
+       slots.push(
+         <Tag
+           key={h}
+           color={isBooked ? 'red' : 'green'}
+           style={{ marginBottom: 6, padding: '4px 8px', fontSize: '13px' }}
+         >
+           {hourStr}:00 ~ {nextHourStr}:00 {isBooked ? '❌ (已預約)' : '✅ (可預約)'}
+         </Tag>
+       );
+     }
+     return slots;
+   };
 
   return (
     <div style={{ padding: '24px' }}>
@@ -318,7 +315,7 @@ export const CourtsPage: React.FC = () => {
             <Space.Compact style={{ width: '100%' }}>
               <Input
                 placeholder="請輸入折扣碼 (例：rf001)"
-                prefix={<TagOutlined />}
+                prefix={<AntdTagOutlined />}
                 value={promoCodeInput}
                 onChange={(e) => setPromoCodeInput(e.target.value)}
               />
@@ -332,7 +329,7 @@ export const CourtsPage: React.FC = () => {
             </Space.Compact>
             {appliedPromoCode && (
               <div style={{ marginTop: 8 }}>
-                <Tag color="green" icon={<CheckCircleOutlined />}>
+                <Tag color="green" icon={<AntdCheckCircleOutlined />}>
                   已套用折扣碼：{appliedPromoCode} (折抵 NT${discountAmount})
                 </Tag>
               </div>
