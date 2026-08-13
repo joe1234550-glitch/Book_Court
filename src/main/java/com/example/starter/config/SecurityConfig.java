@@ -41,6 +41,9 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
+                        // 🎯 0. 放行所有 OPTIONS 預檢請求（解決前端跨域探路請求被擋的問題）
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         // ── 1. 認證與公開 API 放行 ─────────────────────────────────────
                         .requestMatchers("/api/auth/**").permitAll()          // 註冊 / 登入 / refresh / 登出
                         .requestMatchers("/api/example/public").permitAll()   // 示範用公開端點
@@ -59,10 +62,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/bookings/court/**").permitAll()
                         .requestMatchers("/admin/login", "/admin-login.html").permitAll()
 
-                        // (B) 管理員專屬 API：只有 ROLE_ADMIN 可以新增球場、修改狀態或刪除使用者
-                        .requestMatchers(HttpMethod.POST, "/api/v1/courts/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/courts/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/users/**").hasRole("ADMIN")
+                        // 🎯 (B) 管理員專屬 API：改用 hasAnyAuthority 相容 "ADMIN" 與 "ROLE_ADMIN" 兩者
+                        .requestMatchers("/api/v1/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")   // 所有 /api/v1/admin/ 開頭的管理者端點
+                        .requestMatchers("/v1/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")       // 兼顧舊路徑
+                        .requestMatchers(HttpMethod.POST, "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/users/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
 
                         // ── 4. 其他所有請求都需要登入（保持在最後一條） ──────────────────
                         .anyRequest().authenticated()
@@ -100,12 +105,16 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of(
-                "http://localhost:*",
-                "http://127.0.0.1:*"
+        // 1. 精準允許前端 Vite (5173) 與 Localhost 來源
+        config.setAllowedOrigins(List.of(
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173"
         ));
+        // 2. 允許所有 HTTP 動作 (包含 OPTIONS 預檢)
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        // 3. 允許攜帶 Authorization Header
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept"));
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
@@ -113,4 +122,5 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
+
 }

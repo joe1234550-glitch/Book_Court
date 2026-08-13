@@ -57,34 +57,38 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const actualCashReceived = cashReceived !== null ? cashReceived : totalFee;
   const changeAmount = Math.max(0, actualCashReceived - totalFee);
 
-  // 🎯 2. 結帳提交與寫入流水帳邏輯
-  const handleCheckout = async () => {
-    // 若 cashReceived 為 null，安全預設代入 totalFee
-    const currentCash = cashReceived !== null ? cashReceived : totalFee;
+   // 🎯 2. 結帳提交與寫入流水帳邏輯
+   const handleCheckout = async () => {
+     // 若 cashReceived 為 null，安全預設代入 totalFee
+     const currentCash = cashReceived !== null ? cashReceived : totalFee;
 
-    if (paymentMethod === 'CASH' && currentCash < totalFee) {
-      message.error('收取現金金額不足！');
-      return;
-    }
+     if (paymentMethod === 'CASH' && currentCash < totalFee) {
+       message.error('收取現金金額不足！');
+       return;
+     }
 
-    setSubmitting(true);
-    try {
-      // 🎯 正式呼叫後端 API 寫入財務流水帳
-      await adminApi.checkoutBooking(bookingData.id, {
-        amount: totalFee,
-        paymentMethod,
-        invoiceType,
-      });
+     setSubmitting(true);
+     try {
+       // 🎯 正式呼叫後端 API 寫入財務流水帳 (帶入消費者姓名與球場名稱)
+       await adminApi.checkoutBooking(bookingData.id, {
+         amount: totalFee,
+         paymentMethod,
+         userName: bookingData.username || '會員',
+         courtName: bookingData.courtName || '網球場',
+       });
 
-      message.success(`預約單 #${bookingData.id} 結帳成功，已寫入財務流水帳！`);
-      onSuccess(); // 重新整理預約清單
-      onClose();   // 關閉 Modal
-    } catch (err) {
-      message.error('結帳失敗，請確認網路連線或後端狀態');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+       message.success(`預約單 #${bookingData.id} 結帳成功，已寫入財務流水帳！`);
+       onSuccess(); // 重新整理預約清單
+       onClose();   // 關閉 Modal
+     } catch (err) {
+       console.error('結帳失敗:', err);
+       message.error('結帳失敗，請確認網路連線或後端狀態');
+     } finally {
+       setSubmitting(false);
+     }
+   };
+
+
 
   return (
     <Modal

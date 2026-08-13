@@ -182,7 +182,7 @@ export const CourtsPage: React.FC = () => {
       };
 
       // ⚠️ 如果 client.ts 的 baseURL 已含 /api，這裡請改為 `/v1/bookings`
-      const res = await client.post('/api/v1/bookings', payload);
+      const res = await client.post('/v1/bookings', payload);
       const bookingData = res.data?.data ?? res.data;
 
       message.success(`預約成功！實付金額：NT$${bookingData.totalFee ?? finalFee}`);

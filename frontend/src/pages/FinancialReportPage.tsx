@@ -13,38 +13,39 @@ import {
   Typography,
   Spin,
   message,
-  Tooltip,
 } from 'antd';
 import {
   DollarOutlined,
-  RiseOutlined,
-  FallOutlined,
   DownloadOutlined,
   ReloadOutlined,
   TrophyOutlined,
   PayCircleOutlined,
+  CheckCircleOutlined,
+  RollbackOutlined,
 } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
+
+import { adminFinancialReportApi } from '../api/adminFinancialReportApi';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-// 交易紀錄型別定義
-interface TransactionRecord {
-  id: string;
+// 對應後端格式化後的 Transaction 結構
+interface FormattedTransaction {
+  id: string; // 後端轉為 "TXN-1" 格式
   bookingId: number;
   userName: string;
   courtName: string;
   amount: number;
-  paymentMethod: 'LINE_PAY' | 'CREDIT_CARD' | 'CASH';
-  status: 'SUCCESS' | 'REFUNDED' | 'FAILED';
+  paymentMethod: string;
+  status: 'SUCCESS' | 'REFUNDED' | string;
   createdAt: string;
 }
 
-// 財務統計資料型別
+// 對應後端 summary 統計欄位
 interface FinancialSummary {
   totalRevenue: number;
-  revenueGrowth: number; // 百分比
+  revenueGrowth: number;
   totalRefunds: number;
   completedBookingsCount: number;
   averageOrderValue: number;
@@ -58,71 +59,51 @@ export const FinancialReportPage: React.FC = () => {
   ]);
   const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
 
-  // 假數據狀態（實務上需改為 call API）
   const [summary, setSummary] = useState<FinancialSummary>({
-    totalRevenue: 128500,
-    revenueGrowth: 12.5,
-    totalRefunds: 3200,
-    completedBookingsCount: 256,
-    averageOrderValue: 502,
+    totalRevenue: 0,
+    revenueGrowth: 0,
+    totalRefunds: 0,
+    completedBookingsCount: 0,
+    averageOrderValue: 0,
   });
 
-  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [transactions, setTransactions] = useState<FormattedTransaction[]>([]);
 
-  // 模擬載入資料
+  // 載入財務報表資料
   const fetchFinancialData = async () => {
     setLoading(true);
     try {
-      // TODO: 替換為實際 API，例如：await adminApi.getFinancialReport(dateRange[0], dateRange[1])
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const startDate = dateRange && dateRange[0] ? dateRange[0].format('YYYY-MM-DD') : undefined;
+      const endDate = dateRange && dateRange[1] ? dateRange[1].format('YYYY-MM-DD') : undefined;
 
-      // 模擬交易紀錄
-      const mockTransactions: TransactionRecord[] = [
-        {
-          id: 'TXN-20260807-01',
-          bookingId: 108,
-          userName: '張先生',
-          courtName: '第 A 球場 (室內)',
-          amount: 800,
-          paymentMethod: 'LINE_PAY',
-          status: 'SUCCESS',
-          createdAt: '2026-08-07 14:30:00',
-        },
-        {
-          id: 'TXN-20260807-02',
-          bookingId: 107,
-          userName: '李小姐',
-          courtName: '第 B 球場 (室外)',
-          amount: 500,
-          paymentMethod: 'CREDIT_CARD',
-          status: 'SUCCESS',
-          createdAt: '2026-08-07 11:15:00',
-        },
-        {
-          id: 'TXN-20260806-05',
-          bookingId: 99,
-          userName: '王教練',
-          courtName: '第 A 球場 (室內)',
-          amount: 1600,
-          paymentMethod: 'LINE_PAY',
-          status: 'REFUNDED',
-          createdAt: '2026-08-06 18:00:00',
-        },
-        {
-          id: 'TXN-20260805-03',
-          bookingId: 92,
-          userName: '陳隊長',
-          courtName: '風興網球場',
-          amount: 1200,
-          paymentMethod: 'CASH',
-          status: 'SUCCESS',
-          createdAt: '2026-08-05 09:20:00',
-        },
-      ];
+      console.log('🚀 [前端] 開始發送財務報表請求：', { startDate, endDate, paymentFilter });
 
-      setTransactions(mockTransactions);
-    } catch (error) {
-      message.error('載入財務報表失敗');
+      // 呼叫後端 AdminFinancialController
+      const res = await adminFinancialReportApi.getFinancialReport(startDate, endDate, paymentFilter);
+
+      console.log('✅ [前端] 成功取得後端資料：', res);
+
+      // 解構後端 Response 的 summary 與 transactions
+      if (res) {
+        if (res.summary) {
+          setSummary({
+            totalRevenue: Number(res.summary.totalRevenue || 0),
+            revenueGrowth: Number(res.summary.revenueGrowth || 0),
+            totalRefunds: Number(res.summary.totalRefunds || 0),
+            completedBookingsCount: Number(res.summary.completedBookingsCount || 0),
+            averageOrderValue: Number(res.summary.averageOrderValue || 0),
+          });
+        }
+
+        if (Array.isArray(res.transactions)) {
+          setTransactions(res.transactions);
+        } else {
+          setTransactions([]);
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ [前端] 財務報表讀取失敗：', error);
+      message.error(error.response?.data?.message || '載入財務報表失敗，請確認伺服器連線');
     } finally {
       setLoading(false);
     }
@@ -132,14 +113,14 @@ export const FinancialReportPage: React.FC = () => {
     fetchFinancialData();
   }, [dateRange, paymentFilter]);
 
-  // 匯出 CSV 報表
+  // 匯出 CSV 功能
   const handleExportCSV = () => {
     if (transactions.length === 0) {
-      message.warning('無資料可供匯出');
+      message.warning('當前無交易資料可供匯出');
       return;
     }
 
-    const headers = ['交易單號', '預約編號', '消費者', '球場', '金額', '支付方式', '狀態', '交易時間'];
+    const headers = ['交易單號', '預約單號', '消費者', '球場', '金額', '支付方式', '交易狀態', '交易時間'];
     const rows = transactions.map((t) => [
       t.id,
       t.bookingId,
@@ -148,7 +129,7 @@ export const FinancialReportPage: React.FC = () => {
       t.amount,
       t.paymentMethod,
       t.status,
-      t.createdAt,
+      t.createdAt ? dayjs(t.createdAt).format('YYYY-MM-DD HH:mm:ss') : '-',
     ]);
 
     const csvContent =
@@ -158,41 +139,42 @@ export const FinancialReportPage: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `財務報表_${dayjs().format('YYYYMMDD')}.csv`);
+    link.setAttribute('download', `營收財務報表_${dayjs().format('YYYYMMDD')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 
-    message.success('已開始下載財務報表 CSV');
+    message.success('已順利匯出財務報表 CSV');
   };
 
-  // 表格欄位定義
+  // 表格欄位規劃
   const columns = [
     {
-      title: '交易單號',
+      title: '交易流水號',
       dataIndex: 'id',
       key: 'id',
-      render: (text: string) => <Text copyable>{text}</Text>,
+      render: (id: string) => <Text copyable strong style={{ color: '#1890ff' }}>{id || '-'}</Text>,
     },
     {
       title: '預約編號',
       dataIndex: 'bookingId',
       key: 'bookingId',
-      render: (id: number) => <Text strong>#{id}</Text>,
+      render: (id: number) => <Text strong>#{id || '-'}</Text>,
     },
     {
-      title: '消費者',
+      title: '消費者名稱',
       dataIndex: 'userName',
       key: 'userName',
+      render: (name: string) => <Text>{name || '會員'}</Text>,
     },
     {
-      title: '球場',
+      title: '場地名稱',
       dataIndex: 'courtName',
       key: 'courtName',
-      render: (name: string) => (
+      render: (court: string) => (
         <Space>
-          <TrophyOutlined style={{ color: '#1890ff' }} />
-          {name}
+          <TrophyOutlined style={{ color: '#fa8c16' }} />
+          <span>{court || '網球場'}</span>
         </Space>
       ),
     },
@@ -200,12 +182,15 @@ export const FinancialReportPage: React.FC = () => {
       title: '金額',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: number, record: TransactionRecord) => (
-        <Text style={{ color: record.status === 'REFUNDED' ? '#ff4d4f' : '#3f8600' }} strong>
-          {record.status === 'REFUNDED' ? `-NT$ ${amount}` : `NT$ ${amount}`}
-        </Text>
-      ),
-      sorter: (a: TransactionRecord, b: TransactionRecord) => a.amount - b.amount,
+      render: (amount: number, record: FormattedTransaction) => {
+        const isRefunded = record.status === 'REFUNDED';
+        return (
+          <Tag color={isRefunded ? 'volcano' : 'green'} style={{ fontSize: '13px', padding: '2px 8px' }}>
+            <DollarOutlined /> {isRefunded ? `- NT$ ${amount}` : `NT$ ${amount}`}
+          </Tag>
+        );
+      },
+      sorter: (a: FormattedTransaction, b: FormattedTransaction) => a.amount - b.amount,
     },
     {
       title: '支付方式',
@@ -215,9 +200,9 @@ export const FinancialReportPage: React.FC = () => {
         const methodMap: Record<string, { label: string; color: string }> = {
           LINE_PAY: { label: 'LINE Pay', color: 'green' },
           CREDIT_CARD: { label: '信用卡', color: 'blue' },
-          CASH: { label: '現場現金', color: 'orange' },
+          CASH: { label: '現金結帳', color: 'orange' },
         };
-        const target = methodMap[method] || { label: method, color: 'default' };
+        const target = methodMap[method] || { label: method || '未知', color: 'default' };
         return <Tag color={target.color}>{target.label}</Tag>;
       },
     },
@@ -226,33 +211,42 @@ export const FinancialReportPage: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const statusMap: Record<string, { label: string; color: string }> = {
-          SUCCESS: { label: '交易成功', color: 'success' },
-          REFUNDED: { label: '已退款', color: 'error' },
-          FAILED: { label: '交易失敗', color: 'default' },
-        };
-        const target = statusMap[status] || { label: status, color: 'default' };
-        return <Tag color={target.color}>{target.label}</Tag>;
+        if (status === 'SUCCESS') {
+          return (
+            <Tag icon={<CheckCircleOutlined />} color="success">
+              交易成功
+            </Tag>
+          );
+        }
+        if (status === 'REFUNDED') {
+          return (
+            <Tag icon={<RollbackOutlined />} color="error">
+              已退款
+            </Tag>
+          );
+        }
+        return <Tag>{status}</Tag>;
       },
     },
     {
-      title: '交易時間',
+      title: '結帳 / 交易時間',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      sorter: (a: TransactionRecord, b: TransactionRecord) =>
+      render: (time: string) => (time ? dayjs(time).format('YYYY-MM-DD HH:mm:ss') : '-'),
+      sorter: (a: FormattedTransaction, b: FormattedTransaction) =>
         dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
     },
   ];
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* 標題與操作區 */}
+      {/* 頁頭與控制選單 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
         <div>
           <Title level={2} style={{ marginBottom: 4 }}>
-            <DollarOutlined /> 財務報表與營收分析
+            <DollarOutlined /> 財務報表與獲利統計
           </Title>
-          <Text type="secondary">監控系統總收入、退款紀錄與交易明細</Text>
+          <Text type="secondary">即時彙總櫃檯結帳與線上支付獲利，追蹤營收與沖銷紀錄</Text>
         </div>
         <Space wrap>
           <RangePicker
@@ -264,98 +258,95 @@ export const FinancialReportPage: React.FC = () => {
             重新整理
           </Button>
           <Button type="primary" icon={<DownloadOutlined />} onClick={handleExportCSV}>
-            匯出 CSV
+            匯出 CSV 報表
           </Button>
         </Space>
       </div>
 
       <Spin spinning={loading}>
-        {/* 核心財務統計卡片 */}
+        {/* 頂部 4 大核心 KPI 統計卡片 */}
         <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false}>
+            <Card bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <Statistic
                 title="總營業額 (Gross Revenue)"
                 value={summary.totalRevenue}
                 precision={0}
                 prefix="NT$"
-                valueStyle={{ color: '#3f8600' }}
+                valueStyle={{ color: '#3f8600', fontWeight: 'bold' }}
               />
               <div style={{ marginTop: 8 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  較上期{' '}
-                  <Text type={summary.revenueGrowth >= 0 ? 'success' : 'danger'}>
-                    {summary.revenueGrowth >= 0 ? <RiseOutlined /> : <FallOutlined />}{' '}
-                    {Math.abs(summary.revenueGrowth)}%
-                  </Text>
+                  結帳累計總進帳金額
                 </Text>
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false}>
+            <Card bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <Statistic
-                title="已完成預約筆數"
+                title="已結帳成功筆數"
                 value={summary.completedBookingsCount}
                 suffix="筆"
+                valueStyle={{ fontWeight: 'bold' }}
               />
               <div style={{ marginTop: 8 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  平均客單價：NT$ {summary.averageOrderValue}
+                  平均單筆交易金額：NT$ {summary.averageOrderValue}
                 </Text>
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false}>
+            <Card bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <Statistic
-                title="退款總額 (Total Refunds)"
+                title="總退款金額 (Total Refunds)"
                 value={summary.totalRefunds}
                 precision={0}
                 prefix="NT$"
-                valueStyle={{ color: '#cf1322' }}
+                valueStyle={{ color: '#cf1322', fontWeight: 'bold' }}
               />
               <div style={{ marginTop: 8 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  包含用戶取消與管理員人工退款
+                  因天候/人工退款之沖銷金額
                 </Text>
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={6}>
-            <Card bordered={false}>
+            <Card bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <Statistic
-                title="淨收益 (Net Revenue)"
+                title="淨獲利 (Net Revenue)"
                 value={summary.totalRevenue - summary.totalRefunds}
                 precision={0}
                 prefix="NT$"
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: '#1890ff', fontWeight: 'bold' }}
               />
               <div style={{ marginTop: 8 }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  實際扣除退款後進帳金額
+                  扣除退款後的實際淨收益
                 </Text>
               </div>
             </Card>
           </Col>
         </Row>
 
-        {/* 交易明細清單 */}
+        {/* 下方交易明細清單 */}
         <Card
           title={
             <Space>
               <PayCircleOutlined />
-              <span>交易與報銷明細</span>
+              <span>交易與獲利流水帳明細</span>
             </Space>
           }
           extra={
             <Space>
-              <Text type="secondary">支付方式篩選：</Text>
+              <Text type="secondary">支付方式過濾：</Text>
               <Select
-                defaultValue="ALL"
+                value={paymentFilter}
                 style={{ width: 140 }}
                 onChange={(value) => setPaymentFilter(value)}
                 options={[
@@ -370,12 +361,8 @@ export const FinancialReportPage: React.FC = () => {
         >
           <Table
             columns={columns}
-            dataSource={
-              paymentFilter === 'ALL'
-                ? transactions
-                : transactions.filter((t) => t.paymentMethod === paymentFilter)
-            }
-            rowKey="id"
+            dataSource={transactions}
+            rowKey={(record) => record.id}
             pagination={{ pageSize: 10, showSizeChanger: true }}
           />
         </Card>

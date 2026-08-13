@@ -12,8 +12,6 @@ import {
   Select,
   InputNumber,
   message,
-  Popconfirm,
-  Switch,
 } from 'antd';
 import {
   SettingOutlined,
@@ -187,15 +185,22 @@ export const AdminCourtsPage: React.FC = () => {
       width: 140,
       render: (_: any, record: Court) => (
         <Space>
-          <Button danger size="small" onClick={async () => {
-            try {
-              await adminApi.deleteCourt(record.id);
-              message.success('已刪除球場');
-              await loadCourts();
-            } catch (err: any) {
-              message.error(err.response?.data || '刪除失敗');
-            }
-          }}>刪除</Button>
+          <Button
+            danger
+            size="small"
+            onClick={async () => {
+              try {
+                // 已修正：由 adminApi 改為 courtApi
+                await courtApi.deleteCourt(record.id);
+                message.success('已刪除球場');
+                await loadCourts();
+              } catch (err: any) {
+                message.error(err.response?.data?.message || err.response?.data || '刪除失敗');
+              }
+            }}
+          >
+            刪除
+          </Button>
         </Space>
       ),
     },
@@ -250,8 +255,8 @@ export const AdminCourtsPage: React.FC = () => {
               placeholder="請選擇球場類型"
               options={[
                 { value: 'HARD', label: '硬地' },
-                { value: 'GRASS', label: '草地' },
                 { value: 'CLAY', label: '紅土' },
+                { value: 'GRASS', label: '草地' },
               ]}
             />
           </Form.Item>
@@ -296,3 +301,5 @@ export const AdminCourtsPage: React.FC = () => {
     </div>
   );
 };
+
+export default AdminCourtsPage;

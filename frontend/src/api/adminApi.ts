@@ -47,4 +47,5 @@ export const adminApi = {
     const res = await client.post(`/v1/admin/bookings/${id}/checkout`, payload);
     return res.data?.data ?? res.data;
   },
+
 };
