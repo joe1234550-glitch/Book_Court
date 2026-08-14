@@ -57,16 +57,17 @@ public class SecurityConfig {
                         ).permitAll()
 
                         // 🎾 3. 網球預約系統專屬權限規則 ──────────────────────────────────
-                        // (A) 球場公開 API：任何人（包含未登入）都可以查詢球場列表與細節
-                        .requestMatchers(HttpMethod.GET, "/api/v1/courts/**").permitAll()
+                        // (A) 球場公開 API：任何人（包含未登入）都可以查詢球場列表與預約狀況
+                        .requestMatchers(HttpMethod.GET, "/api/v1/courts", "/api/v1/courts/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/bookings/court/**").permitAll()
                         .requestMatchers("/admin/login", "/admin-login.html").permitAll()
 
-                        // 🎯 (B) 管理員專屬 API：改用 hasAnyAuthority 相容 "ADMIN" 與 "ROLE_ADMIN" 兩者
-                        .requestMatchers("/api/v1/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")   // 所有 /api/v1/admin/ 開頭的管理者端點
-                        .requestMatchers("/v1/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")       // 兼顧舊路徑
-                        .requestMatchers(HttpMethod.POST, "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
-                        .requestMatchers(HttpMethod.PATCH, "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        // 🎯 (B) 管理員專屬 API：補齊路徑 (含無斜線端點) 與 DELETE/PUT 動作
+                        .requestMatchers("/api/v1/admin/**", "/v1/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/courts", "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/courts", "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/courts", "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/courts", "/api/v1/courts/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/users/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
 
                         // ── 4. 其他所有請求都需要登入（保持在最後一條） ──────────────────
@@ -82,7 +83,7 @@ public class SecurityConfig {
     }
 
     /**
-     * Spring Security 7（Boot 4）用建構子注入 UserDetailsService。
+     * Spring Security 6/7 用建構子注入 UserDetailsService。
      */
     @Bean
     public AuthenticationProvider authenticationProvider() {
@@ -122,5 +123,5 @@ public class SecurityConfig {
         source.registerCorsConfiguration("/**", config);
         return source;
     }
-
 }
+

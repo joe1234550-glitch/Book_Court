@@ -1,18 +1,11 @@
-import api from './client';
-import { Court, CourtStatus } from '../types';
+import client from './client';
+import { Court, CourtType, CourtStatus } from '../types';
 
 export const courtApi = {
-  getAvailableCourts: () =>
-    api.get<Court[]>('/v1/courts').then((res) => res.data),
+  // 取得開放中的球場列表
+  getAvailableCourts: async (): Promise<Court[]> => {
+    const res = await client.get('/v1/courts');
+    return res.data?.data ?? res.data;
+  },
 
-  getCourtById: (id: number) =>
-    api.get<Court>(`/v1/courts/${id}`).then((res) => res.data),
-
-  createCourt: (court: Omit<Court, 'id' | 'createdAt' | 'updatedAt'>) =>
-    api.post<Court>('/v1/courts', court).then((res) => res.data),
-
-  updateCourtStatus: (id: number, status: CourtStatus) =>
-    api.patch<Court>(`/v1/courts/${id}/status`, null, {
-      params: { status },
-    }).then((res) => res.data),
 };

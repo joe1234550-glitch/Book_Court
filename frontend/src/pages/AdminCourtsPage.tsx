@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Table,
   Tag,
@@ -12,6 +12,7 @@ import {
   Select,
   InputNumber,
   message,
+  Popconfirm,
 } from 'antd';
 import {
   SettingOutlined,
@@ -22,7 +23,7 @@ import {
 import { Court, CourtType, CourtStatus } from '../types';
 import api from '../api/client';
 import { useAuthStore } from '../store/authStore';
-import { courtApi } from '../api/courtApi';
+import { adminCourtApi } from '../api/adminCourtApi'; // 👈 1. 改為引用獨立的 adminCourtApi
 import {
   courtTypeLabels,
   courtStatusLabels,
@@ -32,6 +33,7 @@ import {
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+// 👈 同時提供具名匯出 (export const)
 export const AdminCourtsPage: React.FC = () => {
   const [courts, setCourts] = useState<Court[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,13 +41,14 @@ export const AdminCourtsPage: React.FC = () => {
   const [form] = Form.useForm();
   const [submitLoading, setSubmitLoading] = useState(false);
 
+  // 👈 2. 管理員載入「所有」球場 (包含維修與關閉)
   const loadCourts = async () => {
     setLoading(true);
     try {
-      const data = await courtApi.getAvailableCourts();
+      const data = await adminCourtApi.getAllCourts();
       setCourts(data);
-    } catch (err) {
-      message.error('載入球場清單失敗');
+    } catch (err: any) {
+      message.error(err.response?.data?.message || '載入球場清單失敗');
     } finally {
       setLoading(false);
     }
@@ -54,7 +57,6 @@ export const AdminCourtsPage: React.FC = () => {
   useEffect(() => {
     const doInit = async () => {
       try {
-        // Try to refresh via HttpOnly cookie (backend sets cookie on admin login)
         const resp = await api.get('/auth/refresh/cookie', { withCredentials: true });
         const data = resp.data;
         if (data && data.accessToken) {
@@ -67,7 +69,7 @@ export const AdminCourtsPage: React.FC = () => {
           });
         }
       } catch (err) {
-        // ignore, may be not logged in
+        // Refresh token 失敗時靜態忽略
       }
       await loadCourts();
     };
@@ -75,6 +77,7 @@ export const AdminCourtsPage: React.FC = () => {
     doInit();
   }, []);
 
+  // 👈 3. 新增球場改用 adminCourtApi
   const handleCreate = async (values: {
     name: string;
     type: CourtType;
@@ -84,13 +87,7 @@ export const AdminCourtsPage: React.FC = () => {
   }) => {
     setSubmitLoading(true);
     try {
-      await courtApi.createCourt({
-        name: values.name,
-        type: values.type,
-        status: values.status,
-        description: values.description,
-        hourlyRate: values.hourlyRate,
-      });
+      await adminCourtApi.createCourt(values);
       message.success('球場新增成功');
       setIsModalOpen(false);
       form.resetFields();
@@ -102,13 +99,25 @@ export const AdminCourtsPage: React.FC = () => {
     }
   };
 
+  // 👈 4. 更新狀態改用 adminCourtApi
   const handleStatusChange = async (id: number, newStatus: CourtStatus) => {
     try {
-      await courtApi.updateCourtStatus(id, newStatus);
+      await adminCourtApi.updateCourtStatus(id, newStatus);
       message.success('狀態更新成功');
       await loadCourts();
-    } catch (err) {
-      message.error('狀態更新失敗');
+    } catch (err: any) {
+      message.error(err.response?.data?.message || '狀態更新失敗');
+    }
+  };
+
+  // 👈 5. 刪除球場改用 adminCourtApi
+  const handleDelete = async (id: number) => {
+    try {
+      await adminCourtApi.deleteCourt(id);
+      message.success('已刪除球場');
+      await loadCourts();
+    } catch (err: any) {
+      message.error(err.response?.data?.message || err.response?.data || '刪除失敗，該球場可能已有預約紀錄');
     }
   };
 
@@ -141,7 +150,7 @@ export const AdminCourtsPage: React.FC = () => {
       title: '狀態',
       dataIndex: 'status',
       key: 'status',
-      width: 160,
+      width: 180,
       render: (status: CourtStatus, record: Court) => (
         <Space>
           <Tag color={courtStatusColors[status]}>
@@ -155,7 +164,7 @@ export const AdminCourtsPage: React.FC = () => {
             options={[
               { value: 'AVAILABLE', label: '開放中' },
               { value: 'MAINTENANCE', label: '維修中' },
-              { value: 'BOOKED', label: '已預約' },
+              { value: 'CLOSED', label: '已關閉' },
             ]}
           />
         </Space>
@@ -182,26 +191,19 @@ export const AdminCourtsPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 140,
+      width: 100,
       render: (_: any, record: Court) => (
-        <Space>
-          <Button
-            danger
-            size="small"
-            onClick={async () => {
-              try {
-                // 已修正：由 adminApi 改為 courtApi
-                await courtApi.deleteCourt(record.id);
-                message.success('已刪除球場');
-                await loadCourts();
-              } catch (err: any) {
-                message.error(err.response?.data?.message || err.response?.data || '刪除失敗');
-              }
-            }}
-          >
+        <Popconfirm
+          title="確定要刪除此球場嗎？"
+          description="若已有預約紀錄將無法刪除。"
+          onConfirm={() => handleDelete(record.id)}
+          okText="確定"
+          cancelText="取消"
+        >
+          <Button danger size="small">
             刪除
           </Button>
-        </Space>
+        </Popconfirm>
       ),
     },
   ];
@@ -271,7 +273,7 @@ export const AdminCourtsPage: React.FC = () => {
               options={[
                 { value: 'AVAILABLE', label: '開放中' },
                 { value: 'MAINTENANCE', label: '維修中' },
-                { value: 'BOOKED', label: '已預約' },
+                { value: 'CLOSED', label: '已關閉' },
               ]}
             />
           </Form.Item>
@@ -302,4 +304,5 @@ export const AdminCourtsPage: React.FC = () => {
   );
 };
 
+// 👈 保留預設匯出 (export default) 確保 Router 不會報錯
 export default AdminCourtsPage;
