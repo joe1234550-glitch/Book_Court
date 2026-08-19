@@ -1,5 +1,6 @@
 package com.example.starter.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
@@ -23,13 +24,13 @@ public class CreateBookingRequest {
         private Long courtId;
 
         @NotNull(message = "開始時間不能為空")
-        @Future(message = "預約開始時間必須為未來時間")
-        @Schema(description = "預約開始時間", example = "2026-08-10T14:00:00")
+//        @Future(message = "預約開始時間必須為未來時間")
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") // 🎯 確保時區精確解析，不產生位移
         private LocalDateTime startTime;
 
         @NotNull(message = "結束時間不能為空")
-        @Future(message = "預約結束時間必須為未來時間")
-        @Schema(description = "預約結束時間", example = "2026-08-10T16:00:00")
+//        @Future(message = "預約結束時間必須為未來時間")
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss") // 🎯 確保時區精確解析，不產生位移
         private LocalDateTime endTime;
 
         @Schema(description = "優惠折扣碼 (可選)", example = "SUMMER2026")

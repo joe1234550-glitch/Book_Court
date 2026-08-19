@@ -37,10 +37,9 @@ export const adminApi = {
     const res = await client.put(`/v1/admin/bookings/${id}`, payload);
     return res.data?.data ?? res.data;
   },
-  // 建立預約
-  createBooking: async (payload: any) => {
-    const res = await client.post('/v1/admin/bookings', payload);
-    return res.data?.data ?? res.data;
+  createBooking: async (data: CreateBookingRequest): Promise<BookingResponse> => {
+    const res = await api.post<BookingResponse>('/api/v1/admin/bookings', data);
+    return res.data;
   },
 // 🎯 補上結帳 API (請確認後端 endpoint 是否為 /v1/admin/bookings/{id}/checkout)
   checkoutBooking: async (id: number, payload: { amount: number; paymentMethod: string; invoiceType: string }) => {

@@ -33,7 +33,8 @@ public class AdminBookingController {
     @Operation(summary = "建立預約 (管理員)")
     @PostMapping
     public ResponseEntity<BookingResponse> createBooking(@Valid @RequestBody CreateBookingRequest request) {
-        var resp = adminService.createBooking(request.getUserId(), request);
+        // 🎯 改呼叫 AdminBookingService 中對齊後的 createBooking 邏輯
+        BookingResponse resp = adminBookingService.createBooking(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(resp);
     }
 

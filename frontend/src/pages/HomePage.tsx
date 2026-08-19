@@ -173,7 +173,7 @@ export const HomePage: React.FC = () => {
                 <Card style={{ textAlign: 'center', borderRadius: 12 }}>
                   <Statistic
                     title={<Text style={{ color: '#666' }}>營運時段</Text>}
-                    value="6-22"
+                    value="8-22"
                     suffix="點"
                     valueStyle={{ color: '#52c41a' }}
                   />
